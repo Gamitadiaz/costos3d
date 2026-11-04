@@ -11,6 +11,8 @@ export type Desglose = {
   extras: number;
   total: number;
   kwh: number;
+  // Tu tiempo valorado en dinero. Va aparte: no suma al costo real.
+  trabajo: number;
 };
 
 export function totalImpresora(d: Datos) {
@@ -29,7 +31,7 @@ export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
   return Math.max(0, r.pesoG - usadoRollo(d, r.id, excepto) + r.ajusteG);
 }
 
-export function costo(d: Datos, i: Pick<Impresion, "rolloId" | "gramos" | "minutos" | "extras">): Desglose {
+export function costo(d: Datos, i: Pick<Impresion, "rolloId" | "gramos" | "minutos" | "extras" | "trabajoMin">): Desglose {
   const rollo = d.rollos.find((r) => r.id === i.rolloId);
   const horas = i.minutos / 60;
   const kwh = (horas * d.ajustes.watts[rollo?.material ?? "Otro"]) / 1000;
@@ -44,7 +46,30 @@ export function costo(d: Datos, i: Pick<Impresion, "rolloId" | "gramos" | "minut
   }, 0);
   const extras = i.extras || 0;
 
-  return { material, luz, desgaste, refacciones, extras, total: material + luz + desgaste + refacciones + extras, kwh };
+  const trabajo = ((i.trabajoMin ?? 0) / 60) * d.ajustes.valorHora;
+
+  return { material, luz, desgaste, refacciones, extras, total: material + luz + desgaste + refacciones + extras, kwh, trabajo };
+}
+
+// Qué parte de lo que gastas en piezas buenas se pierde en fallas. Si de cada $100 en
+// piezas buenas pierdes $10 en fallidas, la tasa es 10 % y cada precio debe cubrirla.
+export function tasaFallas(d: Datos) {
+  let buenas = 0;
+  let fallas = 0;
+  for (const i of d.impresiones) {
+    const c = costo(d, i).total;
+    if (i.destino === "fallida") fallas += c;
+    else buenas += c;
+  }
+  // Tope de 50 % para que unas cuantas fallas al principio no disparen los precios.
+  return buenas > 0 ? Math.min(0.5, fallas / buenas) : 0;
+}
+
+// Precio sugerido = (costo real + tu tiempo) × (1 + tasa de fallas) × (1 + margen),
+// redondeado a múltiplos de $5.
+export function precioSugerido(d: Datos, c: Desglose) {
+  const base = (c.total + c.trabajo) * (1 + tasaFallas(d)) * (1 + d.ajustes.margen / 100);
+  return Math.ceil(base / 5) * 5;
 }
 
 export function resumen(d: Datos) {
@@ -59,6 +84,7 @@ export function resumen(d: Datos) {
     ingresos: 0,
     costoVendido: 0,
     vendidas: 0,
+    trabajoVentasH: 0,
     // Lo que no se vende: cuenta como gasto, nunca como ganancia.
     costoPropio: 0,
     propias: 0,
@@ -90,6 +116,7 @@ export function resumen(d: Datos) {
       r.ingresos += i.precioVenta ?? 0;
       r.costoVendido += c.total;
       r.vendidas++;
+      r.trabajoVentasH += (i.trabajoMin ?? 0) / 60;
     } else if (i.destino === "fallida") {
       r.costoFallas += c.total;
       r.fallas++;
@@ -108,6 +135,9 @@ export function resumen(d: Datos) {
   return {
     ...r,
     ganancia: r.ingresos - r.costoVendido,
+    // Lo que te quedó por cada hora de tu trabajo en piezas vendidas.
+    porHora: r.trabajoVentasH > 0 ? (r.ingresos - r.costoVendido) / r.trabajoVentasH : null,
+    tasaFallas: tasaFallas(d),
     balance: r.ingresos - r.gastado,
     recuperado: r.gastado > 0 ? Math.min(1, r.ingresos / r.gastado) : 0,
     filamentoRestanteG,

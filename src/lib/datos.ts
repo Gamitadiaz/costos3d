@@ -41,6 +41,8 @@ export type Impresion = {
   destino: Destino;
   precioVenta?: number;
   extras: number;
+  // Minutos de TU trabajo (preparar, limpiar, empacar). No es dinero que sale de tu bolsa.
+  trabajoMin?: number;
   nota?: string;
 };
 
@@ -65,6 +67,8 @@ export type Ajustes = {
   watts: Record<Material, number>;
   vidaImpresoraH: number;
   margen: number;
+  valorHora: number;
+  trabajoTipico: number;
 };
 
 export type Datos = {
@@ -85,6 +89,10 @@ export const AJUSTES_INICIALES: Ajustes = {
   watts: { PLA: 110, PETG: 140, TPU: 120, ABS: 170, Otro: 130 },
   vidaImpresoraH: 5000,
   margen: 100,
+  // Cuánto quieres ganar por cada hora de tu trabajo.
+  valorHora: 50,
+  // Minutos que se ponen solos en cada impresión nueva (quitarla de la cama, revisar).
+  trabajoTipico: 5,
 };
 
 export const REFACCIONES_INICIALES: Refaccion[] = [

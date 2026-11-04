@@ -1276,3 +1276,34 @@ p {
     margin: 0;
   }
 }
+
+/* Tiempo de trabajo: botones rápidos + campo para escribir otro valor. */
+.fila-trabajo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.trabajo-otro {
+  width: 110px;
+}
+
+.trabajo-otro .campo > span {
+  display: none;
+}
+
+.lista-simple li.aparte {
+  border-bottom: 0;
+  font-size: 0.85rem;
+}
+
+.lista-simple li.aparte span,
+.lista-simple li.aparte b {
+  color: var(--gris);
+}
+
+.portada-datos small {
+  display: block;
+  font-size: 0.75rem;
+}

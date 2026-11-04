@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { Bloque, Encabezado, Numero, Opciones, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
-import { totalImpresora } from "../lib/calculos";
+import { tasaFallas, totalImpresora } from "../lib/calculos";
 import { buscarInicial, exportar, guardar, importar, MATERIALES, nuevoId, type Ajustes as TAjustes, type Datos, type Refaccion } from "../lib/datos";
 import { dinero, fecha } from "../lib/formato";
 
@@ -59,8 +59,20 @@ export function Ajustes({ datos }: { datos: Datos }) {
       </Bloque>
 
       <Bloque clase="formulario" num="03" titulo="Ventas">
-        <Numero etiqueta="Margen para el precio sugerido" onCambio={(margen) => cambiar({ margen })} sufijo="%" valor={a.margen} />
-        <p className="suave">Con 100 % el precio sugerido es el doble del costo real.</p>
+        <div className="dos">
+          <Numero etiqueta="Tu hora de trabajo vale" onCambio={(valorHora) => cambiar({ valorHora })} sufijo="$/h" valor={a.valorHora} />
+          <Numero
+            etiqueta="Tiempo típico por pieza"
+            onCambio={(trabajoTipico) => cambiar({ trabajoTipico: Math.round(trabajoTipico) })}
+            sufijo="min"
+            valor={a.trabajoTipico}
+          />
+        </div>
+        <Numero etiqueta="Margen de ganancia" onCambio={(margen) => cambiar({ margen })} sufijo="%" valor={a.margen} />
+        <p className="suave">
+          Precio sugerido = (costo real + tu tiempo) + tasa de fallas ({Math.round(tasaFallas(datos) * 100)} % ahora, se calcula
+          sola con tus impresiones fallidas) + margen. Como tu tiempo ya va incluido, un margen de 30–50 % suele bastar.
+        </p>
       </Bloque>
       </div>
 

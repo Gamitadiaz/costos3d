@@ -3,12 +3,14 @@ import { useState } from "react";
 import { Bloque, Encabezado, Numero, Opciones, Panel, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
 import { quitarDeBandeja, rolloParecido, useBandeja, type Pendiente } from "../lib/bandeja";
-import { costo, restanteRollo, type Desglose } from "../lib/calculos";
+import { costo, precioSugerido, restanteRollo, tasaFallas, type Desglose } from "../lib/calculos";
 import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion } from "../lib/datos";
 import { dinero, duracion, fecha, gramos } from "../lib/formato";
 import { leerGcode } from "../lib/gcode";
 
 type Filtro = "todas" | Destino;
+
+const TIEMPOS = { "0": "Nada", "5": "5 min", "15": "15 min", "30": "30 min", "60": "1 h", "120": "2 h" } as const;
 
 export function Impresiones({ datos }: { datos: Datos }) {
   const [editando, setEditando] = useState<Impresion | null>(null);
@@ -28,6 +30,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       minutos: p.minutos ?? 0,
       destino: "personal",
       extras: 0,
+      trabajoMin: datos.ajustes.trabajoTipico,
     });
   }
 
@@ -45,6 +48,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       minutos: 0,
       destino: "personal",
       extras: 0,
+      trabajoMin: datos.ajustes.trabajoTipico,
     });
 
   return (
@@ -177,6 +181,12 @@ export function TablaCosto({ c }: { c: Desglose }) {
         <span>Costo real</span>
         <b>{dinero(c.total)}</b>
       </li>
+      {c.trabajo > 0 ? (
+        <li className="aparte">
+          <span>+ Tu tiempo (no es gasto, se cobra al vender)</span>
+          <b>{dinero(c.trabajo)}</b>
+        </li>
+      ) : null}
     </ul>
   );
 }
@@ -200,7 +210,8 @@ function Formulario({
   const c = costo(datos, f);
   const rollo = datos.rollos.find((r) => r.id === f.rolloId);
   const queda = rollo ? restanteRollo(datos, rollo, f.id) : 0;
-  const sugerido = Math.ceil((c.total * (1 + datos.ajustes.margen / 100)) / 5) * 5;
+  const sugerido = precioSugerido(datos, c);
+  const fallas = tasaFallas(datos);
   const disponibles = datos.rollos.filter((r) => !r.agotado || r.id === f.rolloId);
 
   async function cargar(archivo: File | undefined) {
@@ -334,6 +345,20 @@ function Formulario({
           </div>
         ) : null}
 
+        <div className="campo">
+          <span>Tu tiempo de trabajo (preparar, limpiar, empacar) — aproximado está bien</span>
+          <div className="fila-trabajo">
+            <Opciones
+              onCambio={(v) => cambiar({ trabajoMin: Number(v) })}
+              opciones={TIEMPOS}
+              valor={String(f.trabajoMin ?? 0) as keyof typeof TIEMPOS}
+            />
+            <div className="trabajo-otro">
+              <Numero etiqueta="" onCambio={(trabajoMin) => cambiar({ trabajoMin: Math.round(trabajoMin) })} sufijo="min" valor={f.trabajoMin ?? 0} />
+            </div>
+          </div>
+        </div>
+
         <div className="dos">
           <Numero etiqueta="Extras (empaque, pintura…)" onCambio={(extras) => cambiar({ extras })} sufijo="$" valor={f.extras} />
           <Texto etiqueta="Nota" onCambio={(nota) => cambiar({ nota })} valor={f.nota ?? ""} />
@@ -342,8 +367,17 @@ function Formulario({
 
       <Bloque num="Σ" titulo="Costo real">
         <TablaCosto c={c} />
+        {f.destino === "venta" ? (
+          <p className="suave">
+            Sugerido {dinero(sugerido)} = (costo + tu tiempo){fallas > 0 ? ` + ${Math.round(fallas * 100)} % por fallas` : ""} + {datos.ajustes.margen} %
+            de margen.
+          </p>
+        ) : null}
         {f.destino === "venta" && f.precioVenta ? (
-          <p className={f.precioVenta - c.total >= 0 ? "bien" : "mal"}>Ganancia: {dinero(f.precioVenta - c.total)}</p>
+          <p className={f.precioVenta - c.total >= 0 ? "bien" : "mal"}>
+            Ganancia: {dinero(f.precioVenta - c.total)}
+            {f.trabajoMin ? ` · ${dinero(((f.precioVenta - c.total) / f.trabajoMin) * 60)} por hora de tu trabajo` : ""}
+          </p>
         ) : f.destino === "fallida" ? (
           <p className="mal">Fallida: este costo se pierde.</p>
         ) : f.destino !== "venta" ? (

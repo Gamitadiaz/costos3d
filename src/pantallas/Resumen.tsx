@@ -59,6 +59,7 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
             <div>
               <span>Ganancia en ventas</span>
               <b className={r.ganancia >= 0 ? "bien" : "mal"}>{dinero(r.ganancia)}</b>
+              {r.porHora !== null ? <small className="tenue">{dinero(r.porHora)} por hora de tu trabajo</small> : null}
             </div>
           </div>
         </section>
@@ -74,7 +75,7 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
         </Bloque>
 
         <Cifra etiqueta="Uso personal" nota={`${r.propias} piezas · gasto`} valor={dinero(r.costoPropio)} />
-        <Cifra etiqueta="Impresiones fallidas" nota={`${r.fallas} intentos perdidos`} tono={r.fallas ? "mal" : undefined} valor={dinero(r.costoFallas)} />
+        <Cifra etiqueta="Impresiones fallidas" nota={`${r.fallas} intentos · tasa ${numero(r.tasaFallas * 100)} %`} tono={r.fallas ? "mal" : undefined} valor={dinero(r.costoFallas)} />
         <Cifra etiqueta="Luz consumida" nota={`a ${dinero(datos.ajustes.kwh)} el kWh`} valor={dinero(r.luz)} />
         <Cifra etiqueta="Tiempo imprimiendo" nota={`${gramos(r.gramos)} de filamento`} valor={`${numero(r.horas)} h`} />
 
