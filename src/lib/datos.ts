@@ -46,6 +46,7 @@ export type Impresion = {
 
 export const CATEGORIAS = {
   impresora: "Impresora y mejoras",
+  reparacion: "Reparación / avería",
   refaccion: "Refacciones",
   herramienta: "Herramientas",
   insumo: "Insumos (pegamento, lija…)",
@@ -53,7 +54,8 @@ export const CATEGORIAS = {
 } as const;
 export type Categoria = keyof typeof CATEGORIAS;
 
-export type Gasto = { id: string; fecha: string; concepto: string; monto: number; categoria: Categoria };
+// En una reparación, "nota" guarda qué falló y cómo se arregló.
+export type Gasto = { id: string; fecha: string; concepto: string; monto: number; categoria: Categoria; nota?: string };
 
 // Piezas que se gastan con el uso: su costo se reparte entre las impresiones.
 export type Refaccion = { id: string; nombre: string; costo: number; vida: number; unidad: "h" | "kg" };

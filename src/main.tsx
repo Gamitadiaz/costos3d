@@ -1,4 +1,5 @@
 import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource-variable/jetbrains-mono";
 import "./estilos.css";
 
 import { StrictMode } from "react";

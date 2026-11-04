@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Encabezado, Numero, Opciones, Texto } from "../componentes/basicos";
+import { Bloque, Encabezado, Numero, Opciones, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
 import { totalImpresora } from "../lib/calculos";
 import { buscarInicial, exportar, guardar, importar, MATERIALES, nuevoId, type Ajustes as TAjustes, type Datos, type Refaccion } from "../lib/datos";
@@ -17,8 +17,8 @@ export function Ajustes({ datos }: { datos: Datos }) {
     <>
       <Encabezado sub="Los números con los que se calcula todo" titulo="Ajustes" />
 
-      <section className="tarjeta formulario">
-        <h2>Luz</h2>
+      <div className="rejilla">
+      <Bloque clase="ancho-6 formulario" num="01" titulo="Luz">
         <Numero etiqueta="Precio del kWh" onCambio={(kwh) => cambiar({ kwh })} sufijo="$" valor={a.kwh} />
         <p className="suave">
           Es un estimado. En tu recibo de CFE divide el <b className="tinta">total a pagar</b> entre los{" "}
@@ -39,10 +39,10 @@ export function Ajustes({ datos }: { datos: Datos }) {
         <p className="suave">
           Cuando tengas un medidor de enchufe puedes poner el consumo real. El PETG gasta más porque la cama va más caliente.
         </p>
-      </section>
+      </Bloque>
 
-      <section className="tarjeta formulario">
-        <h2>Impresora</h2>
+      <div className="columna ancho-6">
+      <Bloque clase="formulario" num="02" titulo="Impresora">
         <p className="suave">
           Invertido en la impresora y mejoras: <b className="tinta">{dinero(impresora)}</b> (se registra en Inventario → Otros
           gastos).
@@ -50,17 +50,21 @@ export function Ajustes({ datos }: { datos: Datos }) {
         <Numero
           etiqueta="Vida útil estimada"
           onCambio={(vidaImpresoraH) => cambiar({ vidaImpresoraH })}
-          paso="100"
           sufijo="h"
           valor={a.vidaImpresoraH}
         />
         <p className="suave">
           Cada hora impresa cuesta {dinero(a.vidaImpresoraH ? impresora / a.vidaImpresoraH : 0)} de desgaste.
         </p>
-      </section>
+      </Bloque>
 
-      <section className="tarjeta formulario">
-        <h2>Refacciones que se gastan</h2>
+      <Bloque clase="formulario" num="03" titulo="Ventas">
+        <Numero etiqueta="Margen para el precio sugerido" onCambio={(margen) => cambiar({ margen })} sufijo="%" valor={a.margen} />
+        <p className="suave">Con 100 % el precio sugerido es el doble del costo real.</p>
+      </Bloque>
+      </div>
+
+      <Bloque clase="ancho-6 formulario" num="04" titulo="Refacciones que se gastan">
         <p className="suave">Su costo se reparte por horas o por kilos impresos. Son valores estimados: ajústalos con lo que pagues.</p>
         {datos.refacciones.map((p) => (
           <div className="pieza" key={p.id}>
@@ -94,15 +98,10 @@ export function Ajustes({ datos }: { datos: Datos }) {
         >
           <Icono nombre="mas" /> Agregar pieza
         </button>
-      </section>
-
-      <section className="tarjeta formulario">
-        <h2>Ventas</h2>
-        <Numero etiqueta="Margen para el precio sugerido" onCambio={(margen) => cambiar({ margen })} sufijo="%" valor={a.margen} />
-        <p className="suave">Con 100 % el precio sugerido es el doble del costo real.</p>
-      </section>
+      </Bloque>
 
       <Respaldo datos={datos} />
+      </div>
     </>
   );
 }
@@ -127,8 +126,7 @@ function Respaldo({ datos }: { datos: Datos }) {
   }
 
   return (
-    <section className="tarjeta formulario">
-      <h2>Respaldo</h2>
+    <Bloque clase="ancho-6 formulario" num="05" titulo="Respaldo">
       <p className="suave">
         Tus datos viven solo en este navegador. Descarga un respaldo de vez en cuando.
         {datos.ultimoRespaldo ? ` Último: ${fecha(datos.ultimoRespaldo.slice(0, 10))}.` : " Aún no has hecho ninguno."}
@@ -155,6 +153,6 @@ function Respaldo({ datos }: { datos: Datos }) {
         </button>
       ) : null}
       {aviso ? <p className="aviso">{aviso}</p> : null}
-    </section>
+    </Bloque>
   );
 }

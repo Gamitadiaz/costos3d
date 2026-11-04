@@ -67,13 +67,23 @@ export function resumen(d: Datos) {
     // Uso de la máquina.
     horas: 0,
     gramos: 0,
+    // Lo que cada impresión "aparta" para refacciones vs lo que de verdad se ha gastado
+    // en refacciones y reparaciones.
+    apartado: 0,
+    enMantenimiento: 0,
+    reparaciones: 0,
   };
 
   r.enOtros = d.gastos.filter((g) => g.categoria !== "impresora").reduce((s, g) => s + g.monto, 0);
+  for (const g of d.gastos) {
+    if (g.categoria === "refaccion" || g.categoria === "reparacion") r.enMantenimiento += g.monto;
+    if (g.categoria === "reparacion") r.reparaciones++;
+  }
 
   for (const i of d.impresiones) {
     const c = costo(d, i);
     r.luz += c.luz;
+    r.apartado += c.refacciones;
     r.horas += i.minutos / 60;
     r.gramos += i.gramos;
     if (i.destino === "venta") {

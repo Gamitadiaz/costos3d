@@ -10,6 +10,8 @@ const TRAZOS = {
   cerrar: "M6 6l12 12M18 6 6 18",
   borrar: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   editar: "M4 20h4L19 9l-4-4L4 16v4Z",
+  llave: "M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L3 10l3-3 3 3 1.3-1.3a4 4 0 0 1 5-5Z",
+  respaldo: "M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3",
 } as const;
 
 export type NombreIcono = keyof typeof TRAZOS;
