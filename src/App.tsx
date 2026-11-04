@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Icono } from "./componentes/iconos";
-import { pedirPersistencia, useDatos } from "./lib/datos";
+import { buscarInicial, importar, pedirPersistencia, useDatos } from "./lib/datos";
 import { Ajustes } from "./pantallas/Ajustes";
 import { Impresiones } from "./pantallas/Impresiones";
 import { Inventario } from "./pantallas/Inventario";
@@ -22,6 +22,10 @@ export function App() {
 
   useEffect(() => {
     void pedirPersistencia();
+    // Primera vez y vacía: si la PC ofrece el pedido inicial, se carga solo.
+    if (!datos.rollos.length && !datos.gastos.length && !datos.impresiones.length) {
+      void buscarInicial().then((texto) => texto && importar(texto));
+    }
   }, []);
 
   useEffect(() => {
