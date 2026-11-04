@@ -1200,3 +1200,79 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Bandeja de impresiones que llegan desde OrcaSlicer --- */
+
+.bandeja {
+  border-color: rgb(197 240 74 / 0.45);
+}
+
+.bandeja-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bandeja-lista li {
+  display: grid;
+  grid-template-columns: 1fr 130px 100px 70px 60px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--linea);
+  font-size: 0.9rem;
+}
+
+.bandeja-lista .num {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.bandeja-lista .boton {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.aviso-boton {
+  border: 0;
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu-botones button {
+  position: relative;
+}
+
+.globo {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--acento);
+  color: var(--sobre-acento);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 860px) {
+  .bandeja-lista li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .bandeja-lista li > .tenue,
+  .bandeja-lista li > .chip {
+    display: none;
+  }
+
+  .globo {
+    position: absolute;
+    top: 2px;
+    right: 18%;
+    margin: 0;
+  }
+}

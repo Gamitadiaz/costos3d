@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { Icono } from "./componentes/iconos";
+import { useBandeja } from "./lib/bandeja";
 import { buscarInicial, importar, pedirPersistencia, useDatos } from "./lib/datos";
 import { dinero, fecha } from "./lib/formato";
 import { Ajustes } from "./pantallas/Ajustes";
@@ -19,6 +20,7 @@ const PESTANAS: { id: Pantalla; texto: string }[] = [
 
 export function App() {
   const datos = useDatos();
+  const bandeja = useBandeja();
   // La pantalla actual va en la dirección (#inventario), así se puede guardar como marcador.
   const [pantalla, setPantalla] = useState<Pantalla>(() => {
     const h = location.hash.slice(1);
@@ -53,6 +55,7 @@ export function App() {
             <button aria-current={pantalla === p.id ? "page" : undefined} key={p.id} onClick={() => setPantalla(p.id)} type="button">
               <Icono nombre={p.id} tamano={20} />
               <span>{p.texto}</span>
+              {p.id === "impresiones" && bandeja.length ? <em className="globo">{bandeja.length}</em> : null}
             </button>
           ))}
         </div>

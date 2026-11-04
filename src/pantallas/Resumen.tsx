@@ -1,11 +1,13 @@
 import type { Pantalla } from "../App";
 import { Anillo, Barra, Bloque, Carrete, Encabezado } from "../componentes/basicos";
+import { useBandeja } from "../lib/bandeja";
 import { resumen, restanteRollo } from "../lib/calculos";
 import type { Datos } from "../lib/datos";
 import { dinero, gramos, numero } from "../lib/formato";
 
 export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => void }) {
   const r = resumen(datos);
+  const bandeja = useBandeja();
   const activos = datos.rollos
     .filter((x) => !x.agotado)
     .map((x) => ({ x, queda: restanteRollo(datos, x) }))
@@ -23,6 +25,12 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
   return (
     <>
       <Encabezado sub="Lo que de verdad te ha costado imprimir" titulo="Resumen" />
+
+      {bandeja.length ? (
+        <button className="aviso aviso-boton" onClick={() => onIr("impresiones")} type="button">
+          OrcaSlicer mandó {bandeja.length} impresión(es) por confirmar → Registrar
+        </button>
+      ) : null}
 
       {vacia ? (
         <Bloque clase="ancho-12 bienvenida" titulo="Para empezar">

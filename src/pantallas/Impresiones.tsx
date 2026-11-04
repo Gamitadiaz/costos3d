@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Bloque, Encabezado, Numero, Opciones, Panel, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
+import { quitarDeBandeja, rolloParecido, useBandeja, type Pendiente } from "../lib/bandeja";
 import { costo, restanteRollo, type Desglose } from "../lib/calculos";
 import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion } from "../lib/datos";
 import { dinero, duracion, fecha, gramos } from "../lib/formato";
@@ -11,7 +12,24 @@ type Filtro = "todas" | Destino;
 
 export function Impresiones({ datos }: { datos: Datos }) {
   const [editando, setEditando] = useState<Impresion | null>(null);
+  const [desdeOrca, setDesdeOrca] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  const bandeja = useBandeja();
+
+  function registrar(p: Pendiente) {
+    const rollo = rolloParecido(datos, p.material, p.color, (r) => restanteRollo(datos, r));
+    setDesdeOrca(p.id);
+    setEditando({
+      id: "",
+      fecha: p.fecha,
+      nombre: p.nombre,
+      rolloId: rollo?.id ?? "",
+      gramos: p.gramos ?? 0,
+      minutos: p.minutos ?? 0,
+      destino: "personal",
+      extras: 0,
+    });
+  }
 
   const lista = [...datos.impresiones]
     .filter((i) => filtro === "todas" || i.destino === filtro)
@@ -40,6 +58,37 @@ export function Impresiones({ datos }: { datos: Datos }) {
         sub="Cada pieza con su costo real"
         titulo="Impresiones"
       />
+
+      {bandeja.length ? (
+        <Bloque clase="bandeja" num={String(bandeja.length).padStart(2, "0")} titulo="Pendientes desde OrcaSlicer">
+          <p className="suave">Exportaste estos G-code. Si los imprimiste, regístralos; si no, descártalos.</p>
+          <ul className="bandeja-lista">
+            {bandeja.map((p) => (
+              <li key={p.id}>
+                <span className="pieza-nombre">
+                  <i className="muestra" style={{ background: p.color ?? "#666" }} />
+                  {p.nombre}
+                </span>
+                <span className="tenue">
+                  {fecha(p.fecha)}
+                  {p.hora ? ` · ${p.hora}` : ""}
+                </span>
+                <span className="num">{p.minutos != null ? duracion(p.minutos) : "—"}</span>
+                <span className="num">{p.gramos != null ? gramos(p.gramos) : "—"}</span>
+                <span className="chip">{p.material ?? "?"}</span>
+                <div className="fila-botones">
+                  <button className="boton secundario" onClick={() => void quitarDeBandeja(p.id)} type="button">
+                    Descartar
+                  </button>
+                  <button className="boton" disabled={!datos.rollos.length} onClick={() => registrar(p)} type="button">
+                    Registrar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+      ) : null}
 
       <Opciones onCambio={setFiltro} opciones={{ todas: "Todas", ...DESTINOS }} valor={filtro} />
 
@@ -93,7 +142,17 @@ export function Impresiones({ datos }: { datos: Datos }) {
         </div>
       ) : null}
 
-      {editando ? <Formulario datos={datos} inicial={editando} onCerrar={() => setEditando(null)} /> : null}
+      {editando ? (
+        <Formulario
+          alGuardar={() => desdeOrca && void quitarDeBandeja(desdeOrca)}
+          datos={datos}
+          inicial={editando}
+          onCerrar={() => {
+            setEditando(null);
+            setDesdeOrca(null);
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -122,7 +181,17 @@ export function TablaCosto({ c }: { c: Desglose }) {
   );
 }
 
-function Formulario({ datos, inicial, onCerrar }: { datos: Datos; inicial: Impresion; onCerrar: () => void }) {
+function Formulario({
+  datos,
+  inicial,
+  onCerrar,
+  alGuardar,
+}: {
+  datos: Datos;
+  inicial: Impresion;
+  onCerrar: () => void;
+  alGuardar?: () => void;
+}) {
   const [f, setF] = useState(inicial);
   const [aviso, setAviso] = useState("");
   const [arrastrando, setArrastrando] = useState(false);
@@ -163,6 +232,7 @@ function Formulario({ datos, inicial, onCerrar }: { datos: Datos; inicial: Impre
       ...d,
       impresiones: f.id ? d.impresiones.map((x) => (x.id === f.id ? lista : x)) : [...d.impresiones, { ...lista, id: nuevoId() }],
     }));
+    alGuardar?.();
     onCerrar();
   }
 
