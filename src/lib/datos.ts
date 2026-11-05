@@ -53,6 +53,8 @@ export type Impresion = {
   precioPor?: "pieza" | "lote";
   // Minutos de TU trabajo (preparar, limpiar, empacar). No es dinero que sale de tu bolsa.
   trabajoMin?: number;
+  // Si esos minutos son de cada pieza (poner un NFC a cada llavero) o del total.
+  trabajoPor?: "pieza" | "total";
   nota?: string;
 };
 

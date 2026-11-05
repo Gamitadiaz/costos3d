@@ -35,7 +35,7 @@ export function Impresoras({ datos }: { datos: Datos }) {
             <Icono nombre="mas" /> Agregar impresora
           </button>
         }
-        sub="Cada máquina con su desgaste, su consumo y lo que te deja"
+        sub="Cada máquina con su desgaste, su consumo y lo que genera"
         titulo="Impresoras"
       />
 
@@ -163,7 +163,7 @@ function FormImpresora({ datos, inicial, onCerrar }: { datos: Datos; inicial: Im
           ))}
         </datalist>
         <div className="dos">
-          <Texto etiqueta="Nombre (como tú le dices)" onCambio={(nombre) => cambiar({ nombre })} valor={f.nombre} />
+          <Texto etiqueta="Nombre (para identificarla)" onCambio={(nombre) => cambiar({ nombre })} valor={f.nombre} />
           <Texto etiqueta="Modelo" lista="modelos" onCambio={(modelo) => cambiar({ modelo })} valor={f.modelo} />
         </div>
         <p className="suave">
@@ -186,9 +186,9 @@ function FormImpresora({ datos, inicial, onCerrar }: { datos: Datos; inicial: Im
             <Numero etiqueta={m} key={m} onCambio={(w) => cambiar({ watts: { ...f.watts, [m]: w } })} sufijo="W" valor={f.watts[m]} />
           ))}
         </div>
-        <p className="suave">Si tienes un medidor de enchufe, pon el consumo real. Con cama más caliente gasta más.</p>
+        <p className="suave">Si tienes un medidor de consumo eléctrico, registra el valor real. Con la cama a mayor temperatura, el consumo aumenta.</p>
 
-        <h3>Refacciones que se gastan</h3>
+        <h3>Refacciones de desgaste</h3>
         <p className="suave">Su costo se reparte por horas o por kilos impresos en esta impresora.</p>
         {f.refacciones.map((p) => (
           <div className="pieza" key={p.id}>

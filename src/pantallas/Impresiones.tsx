@@ -7,6 +7,7 @@ import {
   costo,
   esModelo,
   gramosDe,
+  minutosTrabajo,
   impresoraDe,
   impresoraPorModelo,
   impresoraReciente,
@@ -22,6 +23,8 @@ import { leerArchivo, type FilamentoGcode } from "../lib/gcode";
 type Filtro = "todas" | Destino;
 
 const TIEMPOS = { "0": "Nada", "5": "5 min", "15": "15 min", "30": "30 min", "60": "1 h", "120": "2 h" } as const;
+// Por pieza los tiempos son cortos (poner un NFC, una argolla, lijar).
+const TIEMPOS_PIEZA = { "0": "Nada", "1": "1 min", "2": "2 min", "3": "3 min", "5": "5 min", "10": "10 min" } as const;
 
 // Borrador: lo que llevas llenado se guarda en este navegador mientras escribes, así un cierre
 // accidental (clic afuera, Esc, recargar la página) no lo pierde. Se borra al guardar.
@@ -120,7 +123,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
 
       {bandeja.length ? (
         <Bloque clase="bandeja" num={String(bandeja.length).padStart(2, "0")} titulo="Pendientes desde OrcaSlicer">
-          <p className="suave">Exportaste estos G-code. Si los imprimiste, regístralos; si no, descártalos.</p>
+          <p className="suave">Exportaste estos G-code. Si ya los imprimiste, regístralos; si no, descártalos.</p>
           <ul className="bandeja-lista">
             {bandeja.map((p) => (
               <li key={p.id}>
@@ -154,7 +157,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       {!datos.impresoras.length ? <p className="vacio">Primero agrega tu impresora en Impresoras.</p> : null}
       {datos.impresoras.length && !datos.rollos.length ? <p className="vacio">Primero agrega tus rollos en Inventario.</p> : null}
       {listo && !lista.length ? (
-        <p className="vacio">Sin impresiones aquí. Al crear una, suelta el archivo laminado (.gcode o .gcode.3mf) y se llena sola.</p>
+        <p className="vacio">Aún no hay impresiones. Al crear una, arrastra el archivo laminado (.gcode o .gcode.3mf) y los datos se completan automáticamente.</p>
       ) : null}
 
       {lista.length ? (
@@ -264,7 +267,7 @@ export function TablaCosto({ c, extrasPieza = 0 }: { c: Desglose; extrasPieza?: 
       ) : null}
       {c.trabajo > 0 ? (
         <li className="aparte">
-          <span>+ Tu tiempo (no es gasto, se cobra al vender)</span>
+          <span>+ Tu tiempo (no es un gasto; se cobra en la venta)</span>
           <b>{dinero(c.trabajo)}</b>
         </li>
       ) : null}
@@ -307,6 +310,9 @@ function Formulario({
   const sugerido = precioSugerido(datos, c);
   const precioPor = c.piezas > 1 ? (f.precioPor ?? "pieza") : "lote";
   const ganancia = (f.precioVenta ?? 0) - c.total;
+  const trabajoPor = c.piezas > 1 ? (f.trabajoPor ?? "total") : "total";
+  const tiempos = trabajoPor === "pieza" ? TIEMPOS_PIEZA : TIEMPOS;
+  const minutosTotales = minutosTrabajo({ ...f, trabajoPor });
   const fallas = tasaFallas(datos);
   const disponibles = datos.rollos.filter((r) => !r.agotado || f.filamentos.some((u) => u.rolloId === r.id));
   const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
@@ -398,7 +404,7 @@ function Formulario({
       >
         <Icono nombre="archivo" tamano={24} />
         <span>
-          <b>Suelta aquí el archivo laminado</b> (.gcode o .gcode.3mf) o haz clic para elegirlo
+          <b>Arrastra aquí el archivo laminado</b> (.gcode o .gcode.3mf) o haz clic para seleccionarlo
         </span>
         <input accept=".gcode,.3mf,.gx,.g" hidden onChange={(e) => void cargar(e.target.files?.[0])} type="file" />
       </label>
@@ -557,17 +563,29 @@ function Formulario({
         ) : null}
 
         <div className="campo">
-          <span>Tu tiempo de trabajo (preparar, limpiar, empacar) — aproximado está bien</span>
+          <span>Tiempo de posprocesado (retirar, limpiar, armar, empacar); un aproximado es suficiente</span>
+          {c.piezas > 1 ? (
+            <Opciones
+              onCambio={(v) => cambiar({ trabajoPor: v })}
+              opciones={{ pieza: "Por pieza", total: "Total de la impresión" }}
+              valor={trabajoPor}
+            />
+          ) : null}
           <div className="fila-trabajo">
             <Opciones
               onCambio={(v) => cambiar({ trabajoMin: Number(v) })}
-              opciones={TIEMPOS}
-              valor={String(f.trabajoMin ?? 0) as keyof typeof TIEMPOS}
+              opciones={tiempos}
+              valor={String(f.trabajoMin ?? 0) as keyof typeof tiempos}
             />
             <div className="trabajo-otro">
               <Numero etiqueta="" onCambio={(trabajoMin) => cambiar({ trabajoMin: Math.round(trabajoMin) })} sufijo="min" valor={f.trabajoMin ?? 0} />
             </div>
           </div>
+          {trabajoPor === "pieza" && f.trabajoMin ? (
+            <small className="tenue">
+              {f.trabajoMin} min × {c.piezas} piezas = {duracion(minutosTotales)} en total
+            </small>
+          ) : null}
         </div>
 
         <div className="dos">
@@ -588,10 +606,10 @@ function Formulario({
           <p className={ganancia >= 0 ? "bien" : "mal"}>
             Ganancia: {dinero(ganancia)}
             {c.piezas > 1 ? ` (${dinero(ganancia / c.piezas)} por pieza)` : ""}
-            {f.trabajoMin ? ` · ${dinero((ganancia / f.trabajoMin) * 60)} por hora de tu trabajo` : ""}
+            {minutosTotales ? ` · ${dinero((ganancia / minutosTotales) * 60)} por hora de tu trabajo` : ""}
           </p>
         ) : f.destino === "fallida" ? (
-          <p className="mal">Fallida: este costo se pierde.</p>
+          <p className="mal">Impresión fallida: este costo se pierde.</p>
         ) : f.destino !== "venta" ? (
           <p className="suave">No es venta: cuenta como gasto, no como ganancia.</p>
         ) : null}

@@ -218,13 +218,13 @@ function FormRollo({ datos, inicial, onCerrar }: { datos: Datos; inicial: RolloF
         </div>
         {!f.id ? (
           <Numero
-            etiqueta="¿Cuántos rollos iguales? (un 2-pack son 2)"
+            etiqueta="¿Cuántos rollos iguales? (un paquete de 2 cuenta como 2)"
             onCambio={(cantidad) => cambiar({ cantidad: Math.round(cantidad) })}
             valor={f.cantidad}
           />
         ) : (
           <>
-            <Numero etiqueta="Le quedan (si lo pesas, sin el carrete)" onCambio={setPesado} sufijo="g" valor={pesado} />
+            <Numero etiqueta="Filamento restante (si lo pesas, sin el carrete)" onCambio={setPesado} sufijo="g" valor={pesado} />
             <p className="suave">Según tus impresiones lleva {gramos(usado)} usados.</p>
             <label className="casilla">
               <input checked={!!f.agotado} onChange={(e) => cambiar({ agotado: e.target.checked })} type="checkbox" />

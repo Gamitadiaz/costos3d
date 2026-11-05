@@ -25,7 +25,7 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
 
   return (
     <>
-      <Encabezado sub="Lo que de verdad te ha costado imprimir" titulo="Resumen" />
+      <Encabezado sub="Lo que realmente te ha costado imprimir" titulo="Resumen" />
 
       {bandeja.length ? (
         <button className="aviso aviso-boton" onClick={() => onIr("impresiones")} type="button">
@@ -83,7 +83,7 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
         <Cifra etiqueta="Luz consumida" nota={`a ${dinero(datos.ajustes.kwh)} el kWh`} valor={dinero(r.luz)} />
         <Cifra etiqueta="Tiempo imprimiendo" nota={`${gramos(r.gramos)} de filamento`} valor={`${numero(r.horas)} h`} />
 
-        <Bloque clase="ancho-5" num="02" titulo="¿En qué se fue el dinero?">
+        <Bloque clase="ancho-5" num="02" titulo="¿En qué se ha gastado el dinero?">
           <div className="pila">
             {partes.map((p) => (
               <i key={p.t} style={{ flexGrow: p.v }} title={`${p.t}: ${dinero(p.v)}`} />
@@ -132,7 +132,7 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
               <b>{dinero(r.apartado)}</b>
             </div>
             <div>
-              <span>Gastado de verdad</span>
+              <span>Gastado realmente</span>
               <b className={r.enMantenimiento > r.apartado ? "mal" : ""}>{dinero(r.enMantenimiento)}</b>
             </div>
           </div>

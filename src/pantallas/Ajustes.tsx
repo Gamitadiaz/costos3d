@@ -25,9 +25,9 @@ export function Ajustes({ datos }: { datos: Datos }) {
 
       <Bloque clase="ancho-6 formulario" num="02" titulo="Ventas">
         <div className="dos">
-          <Numero etiqueta="Tu hora de trabajo vale" onCambio={(valorHora) => cambiar({ valorHora })} sufijo="$/h" valor={a.valorHora} />
+          <Numero etiqueta="Valor de tu hora de trabajo" onCambio={(valorHora) => cambiar({ valorHora })} sufijo="$/h" valor={a.valorHora} />
           <Numero
-            etiqueta="Tiempo típico por pieza"
+            etiqueta="Tiempo de posprocesado habitual"
             onCambio={(trabajoTipico) => cambiar({ trabajoTipico: Math.round(trabajoTipico) })}
             sufijo="min"
             valor={a.trabajoTipico}
@@ -35,8 +35,10 @@ export function Ajustes({ datos }: { datos: Datos }) {
         </div>
         <Numero etiqueta="Margen de ganancia" onCambio={(margen) => cambiar({ margen })} sufijo="%" valor={a.margen} />
         <p className="suave">
-          Precio sugerido = (costo real + tu tiempo) + tasa de fallas ({Math.round(tasaFallas(datos) * 100)} % ahora, se calcula
-          sola con tus impresiones fallidas) + margen. Como tu tiempo ya va incluido, un margen de 30–50 % suele bastar.
+          El tiempo de posprocesado habitual se propone en cada impresión nueva; ahí puedes cambiarlo e indicar si es por pieza o
+          total. Precio sugerido = (costo real + tu tiempo) + tasa de fallas ({Math.round(tasaFallas(datos) * 100)} % actualmente;
+          se calcula con tus impresiones fallidas) + margen. Como tu tiempo ya está incluido, un margen de 30 a 50 % suele ser
+          suficiente.
         </p>
       </Bloque>
 

@@ -63,6 +63,12 @@ export function precioGramo(r: Rollo | undefined) {
   return r && r.pesoG > 0 ? r.precio / r.pesoG : 0;
 }
 
+// Minutos de tu trabajo en toda la impresión (si se anotaron por pieza, se multiplican).
+export function minutosTrabajo(i: Pick<Impresion, "trabajoMin" | "trabajoPor" | "piezas">) {
+  const piezas = Math.max(1, Math.round(i.piezas || 1));
+  return (i.trabajoMin ?? 0) * (i.trabajoPor === "pieza" ? piezas : 1);
+}
+
 export function gramosDe(i: Pick<Impresion, "filamentos">) {
   return i.filamentos.reduce((s, u) => s + u.gramos, 0);
 }
@@ -88,7 +94,7 @@ export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
 
 export function costo(
   d: Datos,
-  i: Pick<Impresion, "filamentos" | "impresoraId" | "minutos" | "extras" | "trabajoMin" | "piezas" | "extrasPieza">,
+  i: Pick<Impresion, "filamentos" | "impresoraId" | "minutos" | "extras" | "trabajoMin" | "trabajoPor" | "piezas" | "extrasPieza">,
 ): Desglose {
   const imp = impresoraDe(d, i.impresoraId);
   const horas = i.minutos / 60;
@@ -109,7 +115,7 @@ export function costo(
   // Lo del lote más lo de cada pieza (por ejemplo, un NFC por llavero).
   const extras = (i.extras || 0) + (i.extrasPieza || 0) * piezas;
 
-  const trabajo = ((i.trabajoMin ?? 0) / 60) * d.ajustes.valorHora;
+  const trabajo = (minutosTrabajo(i) / 60) * d.ajustes.valorHora;
 
   const total = material + luz + desgaste + refacciones + extras;
   return { material, luz, desgaste, refacciones, extras, total, piezas, porPieza: total / piezas, kwh, trabajo };
@@ -182,7 +188,7 @@ export function resumen(d: Datos) {
       r.ingresos += i.precioVenta ?? 0;
       r.costoVendido += c.total;
       r.vendidas++;
-      r.trabajoVentasH += (i.trabajoMin ?? 0) / 60;
+      r.trabajoVentasH += minutosTrabajo(i) / 60;
     } else if (i.destino === "fallida") {
       r.costoFallas += c.total;
       r.fallas++;
