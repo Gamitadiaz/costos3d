@@ -54,15 +54,15 @@ export function datosDeTexto(texto: string): Lectura {
 
   const tiempo =
     buscar(/total estimated time:\s*([^;\n]+)/i) ?? buscar(/estimated printing time \(normal mode\)\s*=\s*([^\n]+)/i);
-  const gramos =
-    buscar(/total filament used \[g\]\s*=\s*([\d.]+)/i) ??
-    buscar(/total filament weight \[g\]\s*:\s*([\d.]+)/i) ??
-    buscar(/filament used \[g\]\s*=\s*([\d.,]+)/i);
+  // Orca: "; filament used [g] = 10.2, 8.5" · Bambu Studio: "; total filament weight [g] : 10.28,8.51"
+  const porColorTexto =
+    buscar(/^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$/im) ?? buscar(/^;\s*total filament weight \[g\]\s*:\s*([\d.,\s]+)$/im);
+  const gramos = buscar(/total filament used \[g\]\s*=\s*([\d.]+)/i) ?? porColorTexto;
   const tipos = buscar(/^;\s*filament_type\s*=\s*([^\n]+)/im);
   const colores = buscar(/^;\s*filament_colou?r\s*=\s*([^\n]+)/im);
 
   return {
-    filamentos: porColor(buscar(/^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$/im), tipos, colores),
+    filamentos: porColor(porColorTexto, tipos, colores),
     minutos: tiempo ? aMinutos(tiempo) : undefined,
     // Si hay varios filamentos ("12.3,4.5") se suman.
     gramos: gramos ? Math.round(gramos.split(",").reduce((s, g) => s + Number(g || 0), 0) * 10) / 10 : undefined,

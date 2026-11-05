@@ -49,14 +49,17 @@ def leer_gcode(ruta):
     )
     gramos = (
         buscar(r"total filament used \[g\]\s*=\s*([\d.]+)")
-        or buscar(r"total filament weight \[g\]\s*:\s*([\d.]+)")
+        or buscar(r"total filament weight \[g\]\s*:\s*([\d.,]+)")
         or buscar(r"filament used \[g\]\s*=\s*([\d.,]+)")
     )
     material = buscar(r"(?m)^;\s*filament_type\s*=\s*([^\n]+)")
     color = buscar(r"(?m)^;\s*filament_colou?r\s*=\s*([^\n]+)")
     impresora = buscar(r"(?m)^;\s*printer_model\s*=\s*([^;\n]+)")
     # Cada color por separado (impresiones multicolor): solo los que de verdad se usaron.
-    por_color = buscar(r"(?m)^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$")
+    # Orca: "; filament used [g] = 10.2, 8.5" · Bambu Studio: "; total filament weight [g] : 10.28,8.51"
+    por_color = buscar(r"(?m)^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$") or buscar(
+        r"(?m)^;\s*total filament weight \[g\]\s*:\s*([\d.,\s]+)$"
+    )
     tipos = re.split(r"[;,]", material or "")
     colores = re.split(r"[;,]", color or "")
     filamentos = []
