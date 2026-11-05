@@ -2,7 +2,7 @@
 """Servidor de Costos 3D: sirve la app compilada (dist/) y la bandeja de impresiones
 que manda OrcaSlicer (privado/pendientes.json).
 
-Uso: python servidor.py 100.104.45.35 4173
+Uso: python servidor.py <ip> 4173   (por ejemplo, la IP de Tailscale de tu PC)
 Solo usa la biblioteca estándar de Python. En la Raspberry funcionará igual.
 """
 

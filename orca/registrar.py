@@ -6,7 +6,7 @@ lo agrega a la bandeja privado/pendientes.json. La app Costos 3D muestra esa ban
 que confirmes cada impresión. Nunca modifica el G-code y nunca hace fallar la exportación.
 
 Configuración en Orca: Proceso → Otros → Scripts de postprocesado:
-    /usr/bin/python3 /home/gama26/Proyectos/costos3d/orca/registrar.py
+    /usr/bin/python3 /ruta/a/costos3d/orca/registrar.py
 """
 
 import hashlib
