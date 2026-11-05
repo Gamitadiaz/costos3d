@@ -33,6 +33,13 @@ def guardar(pendientes):
 
 
 class Manejador(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # La página siempre se revisa contra el servidor, así una versión nueva se ve al recargar. Los
+        # archivos de assets/ llevan una huella en el nombre y sí se pueden guardar.
+        if not self.path.startswith("/assets/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def responder(self, datos, codigo=200):
         cuerpo = json.dumps(datos, ensure_ascii=False).encode()
         self.send_response(codigo)
