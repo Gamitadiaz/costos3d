@@ -42,8 +42,15 @@ export type Impresion = {
   minutos: number;
   destino: Destino;
   impresoraId: string;
+  // Precio de venta del lote completo (si son 20 llaveros, lo de los 20).
   precioVenta?: number;
+  // Extras del lote (empaque, pintura…).
   extras: number;
+  // Cuántas piezas salen en esta impresión y lo que se le agrega a cada una (NFC, argolla…).
+  piezas?: number;
+  extrasPieza?: number;
+  // Cómo prefieres escribir el precio de venta: por pieza o del lote completo.
+  precioPor?: "pieza" | "lote";
   // Minutos de TU trabajo (preparar, limpiar, empacar). No es dinero que sale de tu bolsa.
   trabajoMin?: number;
   nota?: string;

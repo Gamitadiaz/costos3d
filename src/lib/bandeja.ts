@@ -18,6 +18,7 @@ export type Pendiente = {
   impresora?: string | null;
   // Cada color del archivo (impresiones multicolor); los registros viejos no lo traen.
   filamentos?: { material?: string | null; color?: string | null; gramos: number }[];
+  piezas?: number | null;
 };
 
 let pendientes: Pendiente[] = [];
@@ -71,8 +72,33 @@ function rgb(hex: string) {
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
 }
 
-// Elige el rollo con el mismo material y el color más parecido al que tenía el laminador;
-// entre iguales, el que tenga menos filamento (para terminar primero los rollos abiertos).
+// Color en Lab: ahí la distancia se parece a qué tan distintos los ve el ojo (en RGB un azul
+// marino y un negro salen "cerca").
+function lab(hex: string) {
+  const [r, g, b] = rgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  const xyz = [
+    (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047,
+    0.2126 * r + 0.7152 * g + 0.0722 * b,
+    (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883,
+  ].map((t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116));
+  return [116 * xyz[1] - 16, 500 * (xyz[0] - xyz[1]), 200 * (xyz[1] - xyz[2])];
+}
+
+export function diferenciaColor(a: string, b: string) {
+  const [x, y] = [lab(a), lab(b)];
+  return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+}
+
+const esHex = (c?: string | null): c is string => !!c && /^#?[0-9a-f]{6}/i.test(c);
+// Hasta esta diferencia se considera "el mismo color" (los tonos de tus rollos son aproximados).
+export const PARECIDO_MAX = 22;
+
+// El rollo del mismo material y color más parecido al del archivo; entre iguales, el que tenga menos
+// filamento (para terminar primero los rollos abiertos). Si ninguno se parece de verdad (o el archivo
+// no trae color), regresa undefined y te toca elegirlo: mejor preguntar que adivinar.
 // excluir: rollos ya elegidos para otro color de la misma impresión.
 export function rolloParecido(
   d: Datos,
@@ -81,12 +107,13 @@ export function rolloParecido(
   restante?: (r: Rollo) => number,
   excluir?: Set<string>,
 ) {
-  const libres = d.rollos.filter((r) => !r.agotado && !excluir?.has(r.id));
-  const activos = libres.length ? libres : d.rollos.filter((r) => !r.agotado);
-  const mismos = activos.filter((r) => material && r.material.toLowerCase() === material.toLowerCase());
-  const candidatos = mismos.length ? mismos : activos;
-  if (!candidatos.length) return undefined;
-  const objetivo = color && /^#?[0-9a-f]{6}/i.test(color) ? rgb(color) : null;
-  const distancia = (r: Rollo) => (objetivo ? rgb(r.hex).reduce((s, v, i) => s + (v - objetivo[i]) ** 2, 0) : 0);
-  return [...candidatos].sort((a, b) => distancia(a) - distancia(b) || (restante ? restante(a) - restante(b) : 0))[0];
+  if (!esHex(color)) return undefined;
+  const candidatos = d.rollos.filter(
+    (r) => !r.agotado && !excluir?.has(r.id) && (!material || r.material.toLowerCase() === material.toLowerCase()),
+  );
+  const cerca = candidatos
+    .map((r) => ({ r, dif: diferenciaColor(r.hex, color) }))
+    .filter((x) => x.dif <= PARECIDO_MAX)
+    .sort((a, b) => a.dif - b.dif || (restante ? restante(a.r) - restante(b.r) : 0));
+  return cerca[0]?.r;
 }

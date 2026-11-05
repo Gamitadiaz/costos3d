@@ -10,6 +10,8 @@ export type Desglose = {
   refacciones: number;
   extras: number;
   total: number;
+  piezas: number;
+  porPieza: number;
   kwh: number;
   // Tu tiempo valorado en dinero. Va aparte: no suma al costo real.
   trabajo: number;
@@ -86,7 +88,7 @@ export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
 
 export function costo(
   d: Datos,
-  i: Pick<Impresion, "filamentos" | "impresoraId" | "minutos" | "extras" | "trabajoMin">,
+  i: Pick<Impresion, "filamentos" | "impresoraId" | "minutos" | "extras" | "trabajoMin" | "piezas" | "extrasPieza">,
 ): Desglose {
   const imp = impresoraDe(d, i.impresoraId);
   const horas = i.minutos / 60;
@@ -103,11 +105,14 @@ export function costo(
     const uso = p.unidad === "h" ? horas : gramos / 1000;
     return s + (p.costo / p.vida) * uso;
   }, 0);
-  const extras = i.extras || 0;
+  const piezas = Math.max(1, Math.round(i.piezas || 1));
+  // Lo del lote más lo de cada pieza (por ejemplo, un NFC por llavero).
+  const extras = (i.extras || 0) + (i.extrasPieza || 0) * piezas;
 
   const trabajo = ((i.trabajoMin ?? 0) / 60) * d.ajustes.valorHora;
 
-  return { material, luz, desgaste, refacciones, extras, total: material + luz + desgaste + refacciones + extras, kwh, trabajo };
+  const total = material + luz + desgaste + refacciones + extras;
+  return { material, luz, desgaste, refacciones, extras, total, piezas, porPieza: total / piezas, kwh, trabajo };
 }
 
 // Qué parte de lo que gastas en piezas buenas se pierde en fallas. Si de cada $100 en
@@ -124,11 +129,13 @@ export function tasaFallas(d: Datos) {
   return buenas > 0 ? Math.min(0.5, fallas / buenas) : 0;
 }
 
-// Precio sugerido = (costo real + tu tiempo) × (1 + tasa de fallas) × (1 + margen),
-// redondeado a múltiplos de $5.
+// Precio sugerido = (costo real + tu tiempo) × (1 + tasa de fallas) × (1 + margen).
+// Se calcula por pieza (redondeado hacia arriba: a $5 si es caro, a $1 si es barato) y el del lote
+// es ese por el número de piezas, así cuadra al venderlas sueltas.
 export function precioSugerido(d: Datos, c: Desglose) {
-  const base = (c.total + c.trabajo) * (1 + tasaFallas(d)) * (1 + d.ajustes.margen / 100);
-  return Math.ceil(base / 5) * 5;
+  const base = ((c.total + c.trabajo) * (1 + tasaFallas(d)) * (1 + d.ajustes.margen / 100)) / c.piezas;
+  const pieza = base >= 50 ? Math.ceil(base / 5) * 5 : Math.ceil(base);
+  return { pieza, lote: pieza * c.piezas };
 }
 
 export function resumen(d: Datos) {

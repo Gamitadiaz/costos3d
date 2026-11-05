@@ -17,11 +17,23 @@ export type DatosGcode = {
   impresora?: string;
   // Un .gcode.3mf puede traer varias placas; se suman.
   placas?: number;
+  // Cuántas piezas (objetos) se imprimen, si el laminador lo marca.
+  piezas?: number;
 };
 
 type Lectura = Omit<DatosGcode, "nombre">;
 
 const BLOQUE = 256 * 1024;
+const MAX_CONTAR = 80 * 1024 * 1024; // para contar piezas se lee el archivo completo, si no es enorme
+
+// Piezas que marca el laminador: Orca "; printing object X id:N copy C" y Bambu
+// "; start printing object, unique label id: N". Cada pieza aparece en cada capa: se cuentan distintas.
+export function contarPiezas(texto: string): number | undefined {
+  // Orca escribe las dos marcas para cada pieza: se usa una sola para no contarla doble.
+  const orca = new Set([...texto.matchAll(/^; printing object .*?id:(\d+) copy (\d+)/gm)].map((m) => `${m[1]}/${m[2]}`));
+  const bambu = new Set([...texto.matchAll(/^; start printing object, unique label id: ?(\d+)/gm)].map((m) => m[1]));
+  return (orca.size || bambu.size) || undefined;
+}
 
 export function aMinutos(texto: string): number | undefined {
   let total = 0;
@@ -93,6 +105,8 @@ export async function datosDe3mf(datos: ArrayBuffer): Promise<Lectura> {
     const segundos = conTiempo.reduce((s, p) => s + Number(valor(p, "prediction")), 0);
     const gramos = conTiempo.reduce((s, p) => s + Number(valor(p, "weight") ?? 0), 0);
     const filamento = info?.match(/<filament [^>]*type="([^"]*)"[^>]*color="([^"]*)"/);
+    // Los objetos de cada placa (sin los que se marcaron para saltar).
+    const objetos = conTiempo.reduce((s, p) => s + [...p.matchAll(/<object [^>]*skipped="false"/g)].length, 0);
     // Cada <filament> de cada placa trae su color y sus gramos; se suman por color entre placas.
     const usados = new Map<string, FilamentoGcode>();
     for (const placa of conTiempo) {
@@ -107,6 +121,7 @@ export async function datosDe3mf(datos: ArrayBuffer): Promise<Lectura> {
     }
     return {
       filamentos: [...usados.values()],
+      piezas: objetos || undefined,
       minutos: Math.round(segundos / 60),
       gramos: Math.round(gramos * 10) / 10,
       material: filamento?.[1] || undefined,
@@ -138,5 +153,6 @@ export async function leerArchivo(archivo: File): Promise<DatosGcode> {
 
   const inicio = await archivo.slice(0, BLOQUE).text();
   const fin = archivo.size > BLOQUE ? await archivo.slice(-BLOQUE).text() : "";
-  return { nombre, ...datosDeTexto(`${inicio}\n${fin}`) };
+  const piezas = archivo.size <= MAX_CONTAR ? contarPiezas(await archivo.text()) : undefined;
+  return { nombre, ...datosDeTexto(`${inicio}\n${fin}`), piezas };
 }

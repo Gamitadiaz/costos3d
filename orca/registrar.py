@@ -86,6 +86,19 @@ def leer_gcode(ruta):
     }
 
 
+def contar_piezas(ruta):
+    """Piezas que marca Orca ("; printing object X id:N copy C"); cada una aparece en cada capa."""
+    distintas = set()
+    patron = re.compile(rb"^; printing object .*?id:(\d+) copy (\d+)")
+    with ruta.open("rb") as f:
+        for linea in f:
+            if linea.startswith(b"; printing object"):
+                m = patron.match(linea)
+                if m:
+                    distintas.add(m.groups())
+    return len(distintas) or None
+
+
 def nombre_salida(ruta):
     # Orca trabaja sobre un archivo temporal; el nombre real viene en esta variable.
     nombre = os.environ.get("SLIC3R_PP_OUTPUT_NAME") or ruta.name
@@ -107,6 +120,7 @@ def main():
     ruta = Path(sys.argv[-1])
     datos = leer_gcode(ruta)
     datos["nombre"] = nombre_salida(ruta)
+    datos["piezas"] = contar_piezas(ruta)
     datos["fecha"] = time.strftime("%Y-%m-%d")
     datos["hora"] = time.strftime("%H:%M")
 
