@@ -6,14 +6,16 @@ import { buscarInicial, importar, pedirPersistencia, useDatos } from "./lib/dato
 import { dinero, fecha } from "./lib/formato";
 import { Ajustes } from "./pantallas/Ajustes";
 import { Impresiones } from "./pantallas/Impresiones";
+import { Impresoras } from "./pantallas/Impresoras";
 import { Inventario } from "./pantallas/Inventario";
 import { Resumen } from "./pantallas/Resumen";
 
-export type Pantalla = "resumen" | "impresiones" | "inventario" | "ajustes";
+export type Pantalla = "resumen" | "impresiones" | "impresoras" | "inventario" | "ajustes";
 
 const PESTANAS: { id: Pantalla; texto: string }[] = [
   { id: "resumen", texto: "Resumen" },
   { id: "impresiones", texto: "Impresiones" },
+  { id: "impresoras", texto: "Impresoras" },
   { id: "inventario", texto: "Inventario" },
   { id: "ajustes", texto: "Ajustes" },
 ];
@@ -30,7 +32,7 @@ export function App() {
   useEffect(() => {
     void pedirPersistencia();
     // Primera vez y vacía: si la PC ofrece el pedido inicial, se carga solo.
-    if (!datos.rollos.length && !datos.gastos.length && !datos.impresiones.length) {
+    if (!datos.impresoras.length && !datos.rollos.length && !datos.gastos.length && !datos.impresiones.length) {
       void buscarInicial().then((texto) => texto && importar(texto));
     }
   }, []);
@@ -73,6 +75,7 @@ export function App() {
       <main className="pagina">
         {pantalla === "resumen" ? <Resumen datos={datos} onIr={setPantalla} /> : null}
         {pantalla === "impresiones" ? <Impresiones datos={datos} /> : null}
+        {pantalla === "impresoras" ? <Impresoras datos={datos} /> : null}
         {pantalla === "inventario" ? <Inventario datos={datos} /> : null}
         {pantalla === "ajustes" ? <Ajustes datos={datos} /> : null}
       </main>

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """OrcaSlicer ejecuta este script cada vez que exporta o envía un G-code.
 
-Lee del archivo el tiempo estimado, los gramos, el material y el color, y lo agrega a la
-bandeja privado/pendientes.json. La app Costos 3D muestra esa bandeja para que confirmes
-cada impresión. Nunca modifica el G-code y nunca hace fallar la exportación.
+Lee del archivo el tiempo estimado, los gramos, el material, el color y la impresora, y
+lo agrega a la bandeja privado/pendientes.json. La app Costos 3D muestra esa bandeja para
+que confirmes cada impresión. Nunca modifica el G-code y nunca hace fallar la exportación.
 
 Configuración en Orca: Proceso → Otros → Scripts de postprocesado:
     /usr/bin/python3 /home/gama26/Proyectos/costos3d/orca/registrar.py
@@ -50,6 +50,7 @@ def leer_gcode(ruta):
     gramos = buscar(r"total filament used \[g\]\s*=\s*([\d.]+)") or buscar(r"filament used \[g\]\s*=\s*([\d.,]+)")
     material = buscar(r"filament_type\s*=\s*([^;\n]+)")
     color = buscar(r"filament_colou?r\s*=\s*([^;\n]+)")
+    impresora = buscar(r"printer_model\s*=\s*([^;\n]+)")
     # Huella del contenido: si exportas el mismo archivo dos veces, no se duplica.
     huella = hashlib.sha1(texto.encode()).hexdigest()[:16]
 
@@ -59,6 +60,7 @@ def leer_gcode(ruta):
         "gramos": round(sum(float(g or 0) for g in gramos.split(",")), 1) if gramos else None,
         "material": material.split(";")[0].split(",")[0].strip() if material else None,
         "color": color.split(";")[0].split(",")[0].strip() if color else None,
+        "impresora": impresora or None,
     }
 
 

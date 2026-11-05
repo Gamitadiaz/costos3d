@@ -1,7 +1,7 @@
 import type { Pantalla } from "../App";
 import { Anillo, Barra, Bloque, Carrete, Encabezado } from "../componentes/basicos";
 import { useBandeja } from "../lib/bandeja";
-import { resumen, restanteRollo } from "../lib/calculos";
+import { porImpresora, resumen, restanteRollo } from "../lib/calculos";
 import type { Datos } from "../lib/datos";
 import { dinero, gramos, numero } from "../lib/formato";
 
@@ -12,11 +12,12 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
     .filter((x) => !x.agotado)
     .map((x) => ({ x, queda: restanteRollo(datos, x) }))
     .sort((a, b) => a.queda / a.x.pesoG - b.queda / b.x.pesoG);
-  const vacia = !datos.rollos.length && !datos.gastos.length;
+  const vacia = !datos.impresoras.length && !datos.rollos.length;
+  const maquinas = porImpresora(datos).filter((c) => !c.imp.retirada);
 
   // Para la barra de "¿en qué se fue el dinero?".
   const partes = [
-    { t: "Impresora", v: r.enImpresora },
+    { t: "Impresoras", v: r.enImpresora },
     { t: "Filamento", v: r.enFilamento },
     { t: "Refacciones y otros", v: r.enOtros },
     { t: "Luz", v: r.luz },
@@ -34,10 +35,13 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
 
       {vacia ? (
         <Bloque clase="ancho-12 bienvenida" titulo="Para empezar">
-          <p className="suave">Registra la impresora como gasto y tus rollos de filamento.</p>
+          <p className="suave">Agrega tu impresora (o tus impresoras) y luego tus rollos de filamento.</p>
           <div className="fila-botones">
-            <button className="boton" onClick={() => onIr("inventario")} type="button">
-              Ir a Inventario
+            <button className="boton" onClick={() => onIr("impresoras")} type="button">
+              Agregar impresora
+            </button>
+            <button className="boton secundario" onClick={() => onIr("inventario")} type="button">
+              Agregar rollos
             </button>
           </div>
         </Bloque>
@@ -136,22 +140,37 @@ export function Resumen({ datos, onIr }: { datos: Datos; onIr: (p: Pantalla) => 
             {r.reparaciones
               ? `${r.reparaciones} reparación(es) registradas. `
               : "Sin reparaciones registradas. "}
-            Cada impresión aparta un poco para refacciones; si gastas más de lo apartado, sube sus costos en Ajustes.
+            Cada impresión aparta un poco para refacciones; si gastas más de lo apartado, sube sus costos en Impresoras.
           </p>
         </Bloque>
 
-        <Bloque clase="ancho-6" num="05" titulo="Desgaste de la impresora">
-          <div className="dos-cifras">
-            <div>
-              <span>Horas de uso</span>
-              <b>{numero(r.horas)} h</b>
-            </div>
-            <div>
-              <span>Vida estimada</span>
-              <b>{numero(datos.ajustes.vidaImpresoraH)} h</b>
-            </div>
-          </div>
-          <Barra tono={r.vidaUsada > 0.8 ? "aviso" : undefined} valor={r.vidaUsada} />
+        <Bloque
+          accion={
+            <button className="enlace" onClick={() => onIr("impresoras")} type="button">
+              Ver impresoras →
+            </button>
+          }
+          clase="ancho-6"
+          num="05"
+          titulo="Desgaste de las impresoras"
+        >
+          {maquinas.length ? (
+            <ul className="lista-vida">
+              {maquinas.map((c) => (
+                <li key={c.imp.id}>
+                  <div className="maquina-vida">
+                    <span>{c.imp.nombre}</span>
+                    <span className="tenue">
+                      {numero(c.horas)} de {numero(c.imp.vidaH)} h
+                    </span>
+                  </div>
+                  <Barra tono={c.vidaUsada > 0.8 ? "aviso" : undefined} valor={c.vidaUsada} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="suave">Aún no has agregado impresoras.</p>
+          )}
         </Bloque>
       </div>
     </>

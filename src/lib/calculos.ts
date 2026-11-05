@@ -1,4 +1,4 @@
-import type { Datos, Impresion, Rollo } from "./datos";
+import { WATTS_INICIALES, type Datos, type Impresion, type Impresora, type Rollo } from "./datos";
 
 // Aquí está toda la matemática del costo real. Cada parte se calcula por separado
 // para poder mostrar el desglose.
@@ -15,8 +15,43 @@ export type Desglose = {
   trabajo: number;
 };
 
-export function totalImpresora(d: Datos) {
-  return d.gastos.filter((g) => g.categoria === "impresora").reduce((s, g) => s + g.monto, 0);
+export function impresoraDe(d: Datos, id?: string): Impresora | undefined {
+  return d.impresoras.find((x) => x.id === id) ?? d.impresoras[0];
+}
+
+// Lo que costó una impresora más sus mejoras: es lo que se reparte como desgaste.
+export function invertidoImpresora(d: Datos, imp: Impresora) {
+  return imp.precio + d.gastos.filter((g) => g.categoria === "impresora" && g.impresoraId === imp.id).reduce((s, g) => s + g.monto, 0);
+}
+
+export function totalImpresoras(d: Datos) {
+  return (
+    d.impresoras.reduce((s, x) => s + x.precio, 0) +
+    d.gastos.filter((g) => g.categoria === "impresora").reduce((s, g) => s + g.monto, 0)
+  );
+}
+
+// Para que la impresión nueva salga en la impresora que usaste la última vez.
+export function impresoraReciente(d: Datos) {
+  const activas = d.impresoras.filter((x) => !x.retirada);
+  const ultima = [...d.impresiones].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+  return activas.find((x) => x.id === ultima?.impresoraId) ?? activas[0];
+}
+
+function normal(t: string) {
+  return t.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Reconoce la impresora por el modelo que el laminador escribió en el G-code. Si tienes
+// dos del mismo modelo, se queda con la que ya estaba elegida.
+export function impresoraPorModelo(d: Datos, modelo: string | null | undefined, actual?: string) {
+  if (!modelo) return undefined;
+  const m = normal(modelo);
+  const iguales = d.impresoras.filter((x) => {
+    const n = normal(x.modelo || x.nombre);
+    return !x.retirada && n && (m.includes(n) || n.includes(m));
+  });
+  return iguales.find((x) => x.id === actual) ?? iguales[0];
 }
 
 export function precioGramo(r: Rollo | undefined) {
@@ -31,15 +66,20 @@ export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
   return Math.max(0, r.pesoG - usadoRollo(d, r.id, excepto) + r.ajusteG);
 }
 
-export function costo(d: Datos, i: Pick<Impresion, "rolloId" | "gramos" | "minutos" | "extras" | "trabajoMin">): Desglose {
+export function costo(
+  d: Datos,
+  i: Pick<Impresion, "rolloId" | "impresoraId" | "gramos" | "minutos" | "extras" | "trabajoMin">,
+): Desglose {
   const rollo = d.rollos.find((r) => r.id === i.rolloId);
+  const imp = impresoraDe(d, i.impresoraId);
   const horas = i.minutos / 60;
-  const kwh = (horas * d.ajustes.watts[rollo?.material ?? "Otro"]) / 1000;
+  const tipo = rollo?.material ?? "Otro";
+  const kwh = (horas * (imp?.watts[tipo] ?? WATTS_INICIALES[tipo])) / 1000;
 
   const material = i.gramos * precioGramo(rollo);
   const luz = kwh * d.ajustes.kwh;
-  const desgaste = d.ajustes.vidaImpresoraH > 0 ? (horas * totalImpresora(d)) / d.ajustes.vidaImpresoraH : 0;
-  const refacciones = d.refacciones.reduce((s, p) => {
+  const desgaste = imp && imp.vidaH > 0 ? (horas * invertidoImpresora(d, imp)) / imp.vidaH : 0;
+  const refacciones = (imp?.refacciones ?? []).reduce((s, p) => {
     if (p.vida <= 0) return s;
     const uso = p.unidad === "h" ? horas : i.gramos / 1000;
     return s + (p.costo / p.vida) * uso;
@@ -76,7 +116,7 @@ export function resumen(d: Datos) {
   const r = {
     // Dinero que realmente salió de tu bolsa.
     gastado: 0,
-    enImpresora: totalImpresora(d),
+    enImpresora: totalImpresoras(d),
     enFilamento: d.rollos.reduce((s, x) => s + x.precio, 0),
     enOtros: 0,
     luz: 0,
@@ -142,6 +182,40 @@ export function resumen(d: Datos) {
     recuperado: r.gastado > 0 ? Math.min(1, r.ingresos / r.gastado) : 0,
     filamentoRestanteG,
     filamentoValor,
-    vidaUsada: d.ajustes.vidaImpresoraH > 0 ? r.horas / d.ajustes.vidaImpresoraH : 0,
   };
+}
+
+// Las cuentas de cada impresora por separado: cuánto ha trabajado y cuánto deja.
+export function porImpresora(d: Datos) {
+  return d.impresoras.map((imp) => {
+    const invertido = invertidoImpresora(d, imp);
+    let horas = 0;
+    let piezas = 0;
+    let ingresos = 0;
+    let costoVendido = 0;
+    for (const i of d.impresiones) {
+      if (impresoraDe(d, i.impresoraId)?.id !== imp.id) continue;
+      horas += i.minutos / 60;
+      piezas++;
+      if (i.destino === "venta") {
+        ingresos += i.precioVenta ?? 0;
+        costoVendido += costo(d, i).total;
+      }
+    }
+    const arreglos = d.gastos.filter((g) => g.impresoraId === imp.id && (g.categoria === "reparacion" || g.categoria === "refaccion"));
+    return {
+      imp,
+      invertido,
+      horas,
+      piezas,
+      ingresos,
+      ganancia: ingresos - costoVendido,
+      // Qué parte de lo que costó la impresora ya pagaron sus ventas.
+      recuperado: invertido > 0 ? Math.max(0, Math.min(1, (ingresos - costoVendido) / invertido)) : 0,
+      mantenimiento: arreglos.reduce((s, g) => s + g.monto, 0),
+      reparaciones: arreglos.filter((g) => g.categoria === "reparacion").length,
+      vidaUsada: imp.vidaH > 0 ? horas / imp.vidaH : 0,
+      desgasteHora: imp.vidaH > 0 ? invertido / imp.vidaH : 0,
+    };
+  });
 }

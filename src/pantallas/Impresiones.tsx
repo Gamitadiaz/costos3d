@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Bloque, Encabezado, Numero, Opciones, Panel, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
 import { quitarDeBandeja, rolloParecido, useBandeja, type Pendiente } from "../lib/bandeja";
-import { costo, precioSugerido, restanteRollo, tasaFallas, type Desglose } from "../lib/calculos";
+import { costo, impresoraDe, impresoraPorModelo, impresoraReciente, precioSugerido, restanteRollo, tasaFallas, type Desglose } from "../lib/calculos";
 import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion } from "../lib/datos";
 import { dinero, duracion, fecha, gramos } from "../lib/formato";
 import { leerGcode } from "../lib/gcode";
@@ -18,6 +18,9 @@ export function Impresiones({ datos }: { datos: Datos }) {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const bandeja = useBandeja();
 
+  const varias = datos.impresoras.length > 1;
+  const listo = datos.rollos.length > 0 && datos.impresoras.length > 0;
+
   function registrar(p: Pendiente) {
     const rollo = rolloParecido(datos, p.material, p.color, (r) => restanteRollo(datos, r));
     setDesdeOrca(p.id);
@@ -26,6 +29,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       fecha: p.fecha,
       nombre: p.nombre,
       rolloId: rollo?.id ?? "",
+      impresoraId: (impresoraPorModelo(datos, p.impresora) ?? impresoraReciente(datos))?.id ?? "",
       gramos: p.gramos ?? 0,
       minutos: p.minutos ?? 0,
       destino: "personal",
@@ -44,6 +48,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       fecha: hoy(),
       nombre: "",
       rolloId: datos.rollos.find((r) => !r.agotado)?.id ?? "",
+      impresoraId: impresoraReciente(datos)?.id ?? "",
       gramos: 0,
       minutos: 0,
       destino: "personal",
@@ -55,7 +60,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
     <>
       <Encabezado
         accion={
-          <button className="boton" disabled={!datos.rollos.length} onClick={nueva} type="button">
+          <button className="boton" disabled={!listo} onClick={nueva} type="button">
             <Icono nombre="mas" /> Nueva impresión
           </button>
         }
@@ -84,7 +89,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
                   <button className="boton secundario" onClick={() => void quitarDeBandeja(p.id)} type="button">
                     Descartar
                   </button>
-                  <button className="boton" disabled={!datos.rollos.length} onClick={() => registrar(p)} type="button">
+                  <button className="boton" disabled={!listo} onClick={() => registrar(p)} type="button">
                     Registrar
                   </button>
                 </div>
@@ -96,8 +101,9 @@ export function Impresiones({ datos }: { datos: Datos }) {
 
       <Opciones onCambio={setFiltro} opciones={{ todas: "Todas", ...DESTINOS }} valor={filtro} />
 
-      {!datos.rollos.length ? <p className="vacio">Primero agrega tus rollos en Inventario.</p> : null}
-      {datos.rollos.length && !lista.length ? (
+      {!datos.impresoras.length ? <p className="vacio">Primero agrega tu impresora en Impresoras.</p> : null}
+      {datos.impresoras.length && !datos.rollos.length ? <p className="vacio">Primero agrega tus rollos en Inventario.</p> : null}
+      {listo && !lista.length ? (
         <p className="vacio">Sin impresiones aquí. Al crear una, suelta el .gcode de OrcaSlicer y se llena sola.</p>
       ) : null}
 
@@ -108,6 +114,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
               <tr>
                 <th>Pieza</th>
                 <th>Fecha</th>
+                {varias ? <th>Impresora</th> : null}
                 <th className="num">Tiempo</th>
                 <th className="num">Filamento</th>
                 <th>Destino</th>
@@ -129,6 +136,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
                       </span>
                     </td>
                     <td className="tenue">{fecha(i.fecha)}</td>
+                    {varias ? <td className="tenue">{impresoraDe(datos, i.impresoraId)?.nombre}</td> : null}
                     <td className="num">{duracion(i.minutos)}</td>
                     <td className="num">{gramos(i.gramos)}</td>
                     <td>
@@ -213,13 +221,16 @@ function Formulario({
   const sugerido = precioSugerido(datos, c);
   const fallas = tasaFallas(datos);
   const disponibles = datos.rollos.filter((r) => !r.agotado || r.id === f.rolloId);
+  const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
 
   async function cargar(archivo: File | undefined) {
     if (!archivo) return;
     try {
       const g = await leerGcode(archivo);
       const igual = (m?: string) => !!m && m.toLowerCase() === g.material?.toLowerCase();
+      const maquina = impresoraPorModelo(datos, g.impresora, f.impresoraId);
       cambiar({
+        impresoraId: maquina?.id ?? f.impresoraId,
         nombre: f.nombre || g.nombre,
         minutos: g.minutos ?? f.minutos,
         gramos: g.gramos ?? f.gramos,
@@ -229,7 +240,7 @@ function Formulario({
       setAviso(
         faltan.length
           ? `No encontré ${faltan.join(" ni ")} en el archivo. Escríbelos a mano.`
-          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(g.gramos ?? 0)}${g.material ? ` · ${g.material}` : ""}. Revisa el rollo.`,
+          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(g.gramos ?? 0)}${g.material ? ` · ${g.material}` : ""}${maquina ? ` · ${maquina.nombre}` : ""}. Revisa el rollo.`,
       );
     } catch {
       setAviso("No pude leer ese archivo.");
@@ -300,6 +311,17 @@ function Formulario({
           <Texto etiqueta="Nombre" onCambio={(nombre) => cambiar({ nombre })} valor={f.nombre} />
           <Texto etiqueta="Fecha" onCambio={(v) => cambiar({ fecha: v })} tipo="date" valor={f.fecha} />
         </div>
+
+        {maquinas.length > 1 ? (
+          <div className="campo">
+            <span>Impresora</span>
+            <Opciones
+              onCambio={(impresoraId) => cambiar({ impresoraId })}
+              opciones={Object.fromEntries(maquinas.map((x) => [x.id, x.nombre]))}
+              valor={f.impresoraId}
+            />
+          </div>
+        ) : null}
 
         <label className="campo">
           <span>Rollo</span>

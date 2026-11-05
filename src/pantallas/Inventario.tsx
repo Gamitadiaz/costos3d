@@ -2,11 +2,14 @@ import { useState } from "react";
 
 import { Carrete, Encabezado, Numero, Opciones, Panel, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
-import { precioGramo, restanteRollo, usadoRollo } from "../lib/calculos";
+import { impresoraDe, impresoraReciente, precioGramo, restanteRollo, usadoRollo } from "../lib/calculos";
 import { CATEGORIAS, guardar, hoy, MATERIALES, nuevoId, type Datos, type Gasto, type Material, type Rollo } from "../lib/datos";
 import { dinero, fecha, gramos } from "../lib/formato";
 
 type Vista = "rollos" | "gastos";
+
+// Categorías de gasto que pertenecen a una impresora en particular.
+const DE_IMPRESORA: Gasto["categoria"][] = ["impresora", "reparacion", "refaccion"];
 type RolloForm = Rollo & { cantidad: number };
 
 const ROLLO_NUEVO: RolloForm = {
@@ -29,7 +32,8 @@ export function Inventario({ datos }: { datos: Datos }) {
   const [gasto, setGasto] = useState<Gasto | null>(null);
   const [verAgotados, setVerAgotados] = useState(false);
 
-  const nuevoGasto = (categoria: Gasto["categoria"]) => setGasto({ id: "", fecha: hoy(), concepto: "", monto: 0, categoria });
+  const nuevoGasto = (categoria: Gasto["categoria"]) =>
+    setGasto({ id: "", fecha: hoy(), concepto: "", monto: 0, categoria, impresoraId: impresoraReciente(datos)?.id });
 
   return (
     <>
@@ -62,7 +66,7 @@ export function Inventario({ datos }: { datos: Datos }) {
       )}
 
       {rollo ? <FormRollo datos={datos} inicial={rollo} onCerrar={() => setRollo(null)} /> : null}
-      {gasto ? <FormGasto inicial={gasto} onCerrar={() => setGasto(null)} /> : null}
+      {gasto ? <FormGasto datos={datos} inicial={gasto} onCerrar={() => setGasto(null)} /> : null}
     </>
   );
 }
@@ -235,13 +239,15 @@ function FormRollo({ datos, inicial, onCerrar }: { datos: Datos; inicial: RolloF
 
 function Gastos({ datos, onEditar }: { datos: Datos; onEditar: (g: Gasto) => void }) {
   const lista = [...datos.gastos].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const varias = datos.impresoras.length > 1;
   if (!lista.length) return <p className="vacio">Sin gastos registrados.</p>;
 
   return (
     <>
       <p className="suave">
-        La impresora y sus mejoras se reparten como <b className="tinta">desgaste</b> entre tus impresiones. Refacciones y
-        reparaciones se comparan con lo que tus impresiones apartan (ver Resumen).
+        Las mejoras se suman al precio de su impresora y se reparten como <b className="tinta">desgaste</b>. Refacciones y
+        reparaciones se comparan con lo que tus impresiones apartan (ver Resumen). El precio de cada impresora está en
+        Impresoras.
       </p>
       <div className="tabla-marco">
         <table className="tabla">
@@ -249,6 +255,7 @@ function Gastos({ datos, onEditar }: { datos: Datos; onEditar: (g: Gasto) => voi
             <tr>
               <th>Concepto</th>
               <th>Categoría</th>
+              {varias ? <th>Impresora</th> : null}
               <th>Fecha</th>
               <th className="num">Monto</th>
             </tr>
@@ -268,6 +275,7 @@ function Gastos({ datos, onEditar }: { datos: Datos; onEditar: (g: Gasto) => voi
                 <td>
                   <span className={`chip ${g.categoria}`}>{CATEGORIAS[g.categoria]}</span>
                 </td>
+                {varias ? <td className="tenue">{g.impresoraId ? impresoraDe(datos, g.impresoraId)?.nombre : "—"}</td> : null}
                 <td className="tenue">{fecha(g.fecha)}</td>
                 <td className="num fuerte">{dinero(g.monto)}</td>
               </tr>
@@ -279,10 +287,12 @@ function Gastos({ datos, onEditar }: { datos: Datos; onEditar: (g: Gasto) => voi
   );
 }
 
-function FormGasto({ inicial, onCerrar }: { inicial: Gasto; onCerrar: () => void }) {
+function FormGasto({ datos, inicial, onCerrar }: { datos: Datos; inicial: Gasto; onCerrar: () => void }) {
   const [f, setF] = useState(inicial);
   const cambiar = (c: Partial<Gasto>) => setF((x) => ({ ...x, ...c }));
   const averia = f.categoria === "reparacion";
+  const deImpresora = DE_IMPRESORA.includes(f.categoria);
+  const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
 
   return (
     <Panel
@@ -308,9 +318,10 @@ function FormGasto({ inicial, onCerrar }: { inicial: Gasto; onCerrar: () => void
             className="boton"
             disabled={!f.concepto.trim() || f.monto < 0}
             onClick={() => {
+              const listo = { ...f, impresoraId: deImpresora ? (f.impresoraId ?? maquinas[0]?.id) : undefined };
               guardar((d) => ({
                 ...d,
-                gastos: f.id ? d.gastos.map((x) => (x.id === f.id ? f : x)) : [...d.gastos, { ...f, id: nuevoId() }],
+                gastos: f.id ? d.gastos.map((x) => (x.id === f.id ? listo : x)) : [...d.gastos, { ...listo, id: nuevoId() }],
               }));
               onCerrar();
             }}
@@ -327,6 +338,16 @@ function FormGasto({ inicial, onCerrar }: { inicial: Gasto; onCerrar: () => void
           <span>Categoría</span>
           <Opciones onCambio={(categoria) => cambiar({ categoria })} opciones={CATEGORIAS} valor={f.categoria} />
         </div>
+        {deImpresora && maquinas.length > 1 ? (
+          <div className="campo">
+            <span>¿De qué impresora?</span>
+            <Opciones
+              onCambio={(impresoraId) => cambiar({ impresoraId })}
+              opciones={Object.fromEntries(maquinas.map((x) => [x.id, x.nombre]))}
+              valor={f.impresoraId ?? ""}
+            />
+          </div>
+        ) : null}
         <Texto
           etiqueta={averia ? "¿Qué se rompió?" : "¿Qué compraste?"}
           onCambio={(concepto) => cambiar({ concepto })}

@@ -1307,3 +1307,41 @@ p {
   display: block;
   font-size: 0.75rem;
 }
+
+/* --- Impresoras --- */
+
+.maquina-nombre b {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.maquina-nombre small {
+  color: var(--gris);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+.maquina.retirada {
+  opacity: 0.6;
+}
+
+.maquina-vida {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.maquina-vida .tenue {
+  font-family: var(--mono);
+}
+
+.lista-vida {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

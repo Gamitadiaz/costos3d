@@ -1,8 +1,8 @@
-// Lee lo que OrcaSlicer escribe dentro del .gcode: tiempo estimado, gramos y material.
+// Lee lo que OrcaSlicer escribe dentro del .gcode: tiempo estimado, gramos, material e impresora.
 // Esos datos están en comentarios al principio y al final del archivo, así que solo
 // se leen esas partes (un G-code puede pesar decenas de MB).
 
-export type DatosGcode = { nombre: string; minutos?: number; gramos?: number; material?: string };
+export type DatosGcode = { nombre: string; minutos?: number; gramos?: number; material?: string; impresora?: string };
 
 const BLOQUE = 256 * 1024;
 
@@ -27,6 +27,7 @@ export async function leerGcode(archivo: File): Promise<DatosGcode> {
     buscar(/total estimated time:\s*([^;\n]+)/i) ?? buscar(/estimated printing time \(normal mode\)\s*=\s*([^\n]+)/i);
   const gramos = buscar(/total filament used \[g\]\s*=\s*([\d.]+)/i) ?? buscar(/filament used \[g\]\s*=\s*([\d.,]+)/i);
   const material = buscar(/filament_type\s*=\s*([^;\n]+)/i);
+  const impresora = buscar(/printer_model\s*=\s*([^;\n]+)/i);
 
   return {
     nombre: archivo.name.replace(/\.gcode$/i, "").replace(/[_-]+/g, " ").trim(),
@@ -34,5 +35,6 @@ export async function leerGcode(archivo: File): Promise<DatosGcode> {
     // Si hay varios filamentos ("12.3,4.5") se suman.
     gramos: gramos ? Math.round(gramos.split(",").reduce((s, g) => s + Number(g || 0), 0) * 10) / 10 : undefined,
     material: material?.split(/[;,]/)[0]?.trim(),
+    impresora: impresora || undefined,
   };
 }

@@ -15,6 +15,7 @@ export type Pendiente = {
   gramos?: number | null;
   material?: string | null;
   color?: string | null;
+  impresora?: string | null;
 };
 
 let pendientes: Pendiente[] = [];
