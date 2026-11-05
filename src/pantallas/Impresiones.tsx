@@ -3,10 +3,20 @@ import { useState } from "react";
 import { Bloque, Encabezado, Numero, Opciones, Panel, Texto } from "../componentes/basicos";
 import { Icono } from "../componentes/iconos";
 import { quitarDeBandeja, rolloParecido, useBandeja, type Pendiente } from "../lib/bandeja";
-import { costo, impresoraDe, impresoraPorModelo, impresoraReciente, precioSugerido, restanteRollo, tasaFallas, type Desglose } from "../lib/calculos";
+import {
+  costo,
+  esModelo,
+  impresoraDe,
+  impresoraPorModelo,
+  impresoraReciente,
+  precioSugerido,
+  restanteRollo,
+  tasaFallas,
+  type Desglose,
+} from "../lib/calculos";
 import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion } from "../lib/datos";
 import { dinero, duracion, fecha, gramos } from "../lib/formato";
-import { leerGcode } from "../lib/gcode";
+import { leerArchivo } from "../lib/gcode";
 
 type Filtro = "todas" | Destino;
 
@@ -104,7 +114,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
       {!datos.impresoras.length ? <p className="vacio">Primero agrega tu impresora en Impresoras.</p> : null}
       {datos.impresoras.length && !datos.rollos.length ? <p className="vacio">Primero agrega tus rollos en Inventario.</p> : null}
       {listo && !lista.length ? (
-        <p className="vacio">Sin impresiones aquí. Al crear una, suelta el .gcode de OrcaSlicer y se llena sola.</p>
+        <p className="vacio">Sin impresiones aquí. Al crear una, suelta el archivo laminado (.gcode o .gcode.3mf) y se llena sola.</p>
       ) : null}
 
       {lista.length ? (
@@ -213,6 +223,8 @@ function Formulario({
   const [f, setF] = useState(inicial);
   const [aviso, setAviso] = useState("");
   const [arrastrando, setArrastrando] = useState(false);
+  // Modelo de impresora que venía en el archivo, para avisar si no cuadra con la elegida.
+  const [modeloArchivo, setModeloArchivo] = useState<string>();
   const cambiar = (c: Partial<Impresion>) => setF((x) => ({ ...x, ...c }));
 
   const c = costo(datos, f);
@@ -222,28 +234,34 @@ function Formulario({
   const fallas = tasaFallas(datos);
   const disponibles = datos.rollos.filter((r) => !r.agotado || r.id === f.rolloId);
   const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
+  const elegida = impresoraDe(datos, f.impresoraId);
+  const noCuadra = modeloArchivo && elegida && !esModelo(elegida, modeloArchivo);
 
   async function cargar(archivo: File | undefined) {
     if (!archivo) return;
     try {
-      const g = await leerGcode(archivo);
+      const g = await leerArchivo(archivo);
       const igual = (m?: string) => !!m && m.toLowerCase() === g.material?.toLowerCase();
       const maquina = impresoraPorModelo(datos, g.impresora, f.impresoraId);
+      // Si el rollo elegido ya es del material del archivo se respeta; si no, el de color más parecido.
+      const parecido = rolloParecido(datos, g.material, g.color, (r) => restanteRollo(datos, r, f.id));
       cambiar({
         impresoraId: maquina?.id ?? f.impresoraId,
         nombre: f.nombre || g.nombre,
         minutos: g.minutos ?? f.minutos,
         gramos: g.gramos ?? f.gramos,
-        rolloId: igual(rollo?.material) ? f.rolloId : (disponibles.find((r) => igual(r.material))?.id ?? f.rolloId),
+        rolloId: igual(rollo?.material) ? f.rolloId : igual(parecido?.material) ? parecido!.id : f.rolloId,
       });
+      setModeloArchivo(g.impresora);
       const faltan = [g.minutos === undefined && "tiempo", g.gramos === undefined && "gramos"].filter(Boolean);
+      const placas = g.placas && g.placas > 1 ? ` · ${g.placas} placas sumadas` : "";
       setAviso(
         faltan.length
           ? `No encontré ${faltan.join(" ni ")} en el archivo. Escríbelos a mano.`
-          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(g.gramos ?? 0)}${g.material ? ` · ${g.material}` : ""}${maquina ? ` · ${maquina.nombre}` : ""}. Revisa el rollo.`,
+          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(g.gramos ?? 0)}${g.material ? ` · ${g.material}` : ""}${placas}. Revisa el rollo.`,
       );
-    } catch {
-      setAviso("No pude leer ese archivo.");
+    } catch (e) {
+      setAviso(e instanceof Error && e.message.endsWith(".") ? e.message : "No pude leer ese archivo.");
     }
   }
 
@@ -300,9 +318,9 @@ function Formulario({
       >
         <Icono nombre="archivo" tamano={24} />
         <span>
-          <b>Suelta aquí el .gcode</b> o haz clic para elegirlo
+          <b>Suelta aquí el archivo laminado</b> (.gcode o .gcode.3mf) o haz clic para elegirlo
         </span>
-        <input accept=".gcode" hidden onChange={(e) => void cargar(e.target.files?.[0])} type="file" />
+        <input accept=".gcode,.3mf,.gx,.g" hidden onChange={(e) => void cargar(e.target.files?.[0])} type="file" />
       </label>
       {aviso ? <p className="aviso">{aviso}</p> : null}
 
@@ -321,6 +339,14 @@ function Formulario({
               valor={f.impresoraId}
             />
           </div>
+        ) : null}
+
+        {noCuadra && elegida ? (
+          <p className="aviso">
+            Este archivo es para una <b>{modeloArchivo}</b>, pero elegiste <b>{elegida.nombre}</b>
+            {elegida.modelo ? ` (${elegida.modelo})` : ""}. Si de verdad la imprimiste ahí, está bien; si no, cambia la impresora.
+            {!impresoraPorModelo(datos, modeloArchivo) ? " Ninguna de tus impresoras tiene ese modelo: revísalo en Impresoras." : ""}
+          </p>
         ) : null}
 
         <label className="campo">

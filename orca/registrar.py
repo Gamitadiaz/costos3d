@@ -47,10 +47,14 @@ def leer_gcode(ruta):
     tiempo = buscar(r"total estimated time:\s*([^;\n]+)") or buscar(
         r"estimated printing time \(normal mode\)\s*=\s*([^\n]+)"
     )
-    gramos = buscar(r"total filament used \[g\]\s*=\s*([\d.]+)") or buscar(r"filament used \[g\]\s*=\s*([\d.,]+)")
-    material = buscar(r"filament_type\s*=\s*([^;\n]+)")
-    color = buscar(r"filament_colou?r\s*=\s*([^;\n]+)")
-    impresora = buscar(r"printer_model\s*=\s*([^;\n]+)")
+    gramos = (
+        buscar(r"total filament used \[g\]\s*=\s*([\d.]+)")
+        or buscar(r"total filament weight \[g\]\s*:\s*([\d.]+)")
+        or buscar(r"filament used \[g\]\s*=\s*([\d.,]+)")
+    )
+    material = buscar(r"(?m)^;\s*filament_type\s*=\s*([^;\n]+)")
+    color = buscar(r"(?m)^;\s*filament_colou?r\s*=\s*([^;\n]+)")
+    impresora = buscar(r"(?m)^;\s*printer_model\s*=\s*([^;\n]+)")
     # Huella del contenido: si exportas el mismo archivo dos veces, no se duplica.
     huella = hashlib.sha1(texto.encode()).hexdigest()[:16]
 

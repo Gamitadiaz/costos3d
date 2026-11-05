@@ -42,15 +42,18 @@ function normal(t: string) {
   return t.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Reconoce la impresora por el modelo que el laminador escribió en el G-code. Si tienes
+// ¿El modelo que escribió el laminador ("Bambu Lab A1") es el de esta impresora?
+export function esModelo(imp: Impresora, modelo: string) {
+  const m = normal(modelo);
+  const n = normal(imp.modelo || imp.nombre);
+  return !!m && !!n && (m === n || m.includes(n) || n.includes(m));
+}
+
+// Reconoce la impresora por el modelo que el laminador escribió en el archivo. Si tienes
 // dos del mismo modelo, se queda con la que ya estaba elegida.
 export function impresoraPorModelo(d: Datos, modelo: string | null | undefined, actual?: string) {
   if (!modelo) return undefined;
-  const m = normal(modelo);
-  const iguales = d.impresoras.filter((x) => {
-    const n = normal(x.modelo || x.nombre);
-    return !x.retirada && n && (m.includes(n) || n.includes(m));
-  });
+  const iguales = d.impresoras.filter((x) => !x.retirada && esModelo(x, modelo));
   return iguales.find((x) => x.id === actual) ?? iguales[0];
 }
 
