@@ -1404,3 +1404,8 @@ p {
   font-family: var(--mono);
   font-size: 0.75rem;
 }
+
+.boton.secundario.activo {
+  border-color: var(--acento);
+  color: var(--acento);
+}

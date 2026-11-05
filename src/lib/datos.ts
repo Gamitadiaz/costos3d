@@ -51,6 +51,8 @@ export type Impresion = {
   extrasPieza?: number;
   // Cómo prefieres escribir el precio de venta: por pieza o del lote completo.
   precioPor?: "pieza" | "lote";
+  // El precio se tomó del sugerido y lo sigue si cambian el tiempo, las piezas o los extras.
+  precioAuto?: boolean;
   // Minutos de TU trabajo (preparar, limpiar, empacar). No es dinero que sale de tu bolsa.
   trabajoMin?: number;
   // Si esos minutos son de cada pieza (poner un NFC a cada llavero) o del total.

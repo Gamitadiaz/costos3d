@@ -313,6 +313,11 @@ function Formulario({
   const trabajoPor = c.piezas > 1 ? (f.trabajoPor ?? "total") : "total";
   const tiempos = trabajoPor === "pieza" ? TIEMPOS_PIEZA : TIEMPOS;
   const minutosTotales = minutosTrabajo({ ...f, trabajoPor });
+
+  // Si el precio vino del botón "Sugerido", se mantiene al día con lo que cambie.
+  useEffect(() => {
+    if (f.destino === "venta" && f.precioAuto && f.precioVenta !== sugerido.lote) cambiar({ precioVenta: sugerido.lote });
+  }, [sugerido.lote, f.precioAuto, f.destino]);
   const fallas = tasaFallas(datos);
   const disponibles = datos.rollos.filter((r) => !r.agotado || f.filamentos.some((u) => u.rolloId === r.id));
   const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
@@ -551,14 +556,23 @@ function Formulario({
             <div className="dos abajo">
               <Numero
                 etiqueta={precioPor === "pieza" ? "Precio de venta por pieza" : c.piezas > 1 ? `Precio del lote (${c.piezas} piezas)` : "Precio de venta"}
-                onCambio={(v) => cambiar({ precioVenta: precioPor === "pieza" ? Math.round(v * c.piezas * 100) / 100 : v })}
+                onCambio={(v) => cambiar({ precioVenta: precioPor === "pieza" ? Math.round(v * c.piezas * 100) / 100 : v, precioAuto: false })}
                 sufijo="$"
                 valor={precioPor === "pieza" ? Math.round(((f.precioVenta ?? 0) / c.piezas) * 100) / 100 : (f.precioVenta ?? 0)}
               />
-              <button className="boton secundario" onClick={() => cambiar({ precioVenta: sugerido.lote })} type="button">
+              <button
+                className={`boton secundario ${f.precioAuto ? "activo" : ""}`}
+                onClick={() => cambiar({ precioVenta: sugerido.lote, precioAuto: true })}
+                type="button"
+              >
                 Sugerido {c.piezas > 1 ? `${dinero(sugerido.pieza)} c/u` : dinero(sugerido.lote)}
               </button>
             </div>
+            <small className="tenue">
+              {f.precioAuto
+                ? "Usas el precio sugerido: se actualiza solo si cambias el tiempo, las piezas o los extras."
+                : "Precio escrito a mano: no cambia solo. Presiona «Sugerido» para usar el calculado."}
+            </small>
           </>
         ) : null}
 
