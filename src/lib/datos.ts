@@ -31,12 +31,14 @@ export const DESTINOS = {
 } as const;
 export type Destino = keyof typeof DESTINOS;
 
+// Cuánto filamento salió de cada rollo. Una impresión de varios colores (AMS) usa varios.
+export type Uso = { rolloId: string; gramos: number };
+
 export type Impresion = {
   id: string;
   fecha: string;
   nombre: string;
-  rolloId: string;
-  gramos: number;
+  filamentos: Uso[];
   minutos: number;
   destino: Destino;
   impresoraId: string;
@@ -97,7 +99,7 @@ export type Ajustes = {
 };
 
 export type Datos = {
-  version: 2;
+  version: 3;
   impresoras: Impresora[];
   rollos: Rollo[];
   impresiones: Impresion[];
@@ -140,7 +142,7 @@ export function impresoraNueva(): Impresora {
 }
 
 const VACIO: Datos = {
-  version: 2,
+  version: 3,
   impresoras: [],
   rollos: [],
   impresiones: [],
@@ -151,8 +153,16 @@ const VACIO: Datos = {
 const CLAVE = "costos3d:datos";
 
 // Así eran los datos en la versión 1, cuando solo había una impresora.
-type DatosV1 = Partial<Omit<Datos, "version" | "ajustes">> & {
-  version?: 1 | 2;
+// En las versiones 1 y 2 cada impresión tenía un solo rollo (rolloId y gramos).
+type ImpresionVieja = Omit<Impresion, "filamentos" | "impresoraId"> & {
+  filamentos?: Uso[];
+  impresoraId?: string;
+  rolloId?: string;
+  gramos?: number;
+};
+type DatosV1 = Partial<Omit<Datos, "version" | "ajustes" | "impresiones">> & {
+  version?: 1 | 2 | 3;
+  impresiones?: ImpresionVieja[];
   refacciones?: Refaccion[];
   ajustes?: Partial<Ajustes> & { watts?: Partial<Record<Material, number>>; vidaImpresoraH?: number };
 };
@@ -162,7 +172,11 @@ function completar(d: DatosV1): Datos {
   const { refacciones, ajustes: viejos, ...resto } = d;
   const { watts, vidaImpresoraH, ...ajustes } = viejos ?? {};
   let gastos = d.gastos ?? [];
-  let impresiones = (d.impresiones ?? []) as Impresion[];
+  let impresiones = (d.impresiones ?? []).map(({ rolloId, gramos, ...i }) => ({
+    ...i,
+    impresoraId: i.impresoraId ?? "",
+    filamentos: i.filamentos ?? [{ rolloId: rolloId ?? "", gramos: gramos ?? 0 }],
+  }));
   let impresoras = d.impresoras;
 
   // De la versión 1 a la 2: la compra de la impresora (el gasto "impresora" más grande)
@@ -193,7 +207,7 @@ function completar(d: DatosV1): Datos {
   return {
     ...VACIO,
     ...resto,
-    version: 2,
+    version: 3,
     impresoras,
     gastos,
     impresiones,
@@ -257,7 +271,7 @@ export function exportar() {
 
 export function importar(texto: string) {
   const d = JSON.parse(texto) as DatosV1;
-  if ((d.version !== 1 && d.version !== 2) || !Array.isArray(d.rollos) || !Array.isArray(d.impresiones)) {
+  if (![1, 2, 3].includes(d.version ?? 0) || !Array.isArray(d.rollos) || !Array.isArray(d.impresiones)) {
     throw new Error("El archivo no es un respaldo de Costos 3D.");
   }
   guardar(() => completar(d));

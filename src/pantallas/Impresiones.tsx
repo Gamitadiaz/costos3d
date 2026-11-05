@@ -6,6 +6,7 @@ import { quitarDeBandeja, rolloParecido, useBandeja, type Pendiente } from "../l
 import {
   costo,
   esModelo,
+  gramosDe,
   impresoraDe,
   impresoraPorModelo,
   impresoraReciente,
@@ -14,13 +15,30 @@ import {
   tasaFallas,
   type Desglose,
 } from "../lib/calculos";
-import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion } from "../lib/datos";
+import { DESTINOS, guardar, hoy, nuevoId, type Datos, type Destino, type Impresion, type Uso } from "../lib/datos";
 import { dinero, duracion, fecha, gramos } from "../lib/formato";
-import { leerArchivo } from "../lib/gcode";
+import { leerArchivo, type FilamentoGcode } from "../lib/gcode";
 
 type Filtro = "todas" | Destino;
 
 const TIEMPOS = { "0": "Nada", "5": "5 min", "15": "15 min", "30": "30 min", "60": "1 h", "120": "2 h" } as const;
+
+// A cada color del archivo le toca el rollo del mismo material y color más parecido, sin repetir
+// rollo entre colores (si alcanzan los rollos).
+function asignarRollos(datos: Datos, colores: FilamentoGcode[], excepto?: string): Uso[] {
+  const usados = new Set<string>();
+  return colores.map((x) => {
+    const rollo = rolloParecido(datos, x.material, x.color, (r) => restanteRollo(datos, r, excepto), usados);
+    if (rollo) usados.add(rollo.id);
+    return { rolloId: rollo?.id ?? "", gramos: x.gramos };
+  });
+}
+
+// Los colores que trae un pendiente de la bandeja (los registros viejos solo traen uno).
+function coloresDe(p: Pendiente): FilamentoGcode[] {
+  if (p.filamentos?.length) return p.filamentos.map((x) => ({ material: x.material ?? undefined, color: x.color ?? undefined, gramos: x.gramos }));
+  return [{ material: p.material ?? undefined, color: p.color ?? undefined, gramos: p.gramos ?? 0 }];
+}
 
 export function Impresiones({ datos }: { datos: Datos }) {
   const [editando, setEditando] = useState<Impresion | null>(null);
@@ -32,15 +50,13 @@ export function Impresiones({ datos }: { datos: Datos }) {
   const listo = datos.rollos.length > 0 && datos.impresoras.length > 0;
 
   function registrar(p: Pendiente) {
-    const rollo = rolloParecido(datos, p.material, p.color, (r) => restanteRollo(datos, r));
     setDesdeOrca(p.id);
     setEditando({
       id: "",
       fecha: p.fecha,
       nombre: p.nombre,
-      rolloId: rollo?.id ?? "",
+      filamentos: asignarRollos(datos, coloresDe(p)),
       impresoraId: (impresoraPorModelo(datos, p.impresora) ?? impresoraReciente(datos))?.id ?? "",
-      gramos: p.gramos ?? 0,
       minutos: p.minutos ?? 0,
       destino: "personal",
       extras: 0,
@@ -57,9 +73,8 @@ export function Impresiones({ datos }: { datos: Datos }) {
       id: "",
       fecha: hoy(),
       nombre: "",
-      rolloId: datos.rollos.find((r) => !r.agotado)?.id ?? "",
+      filamentos: [{ rolloId: datos.rollos.find((r) => !r.agotado)?.id ?? "", gramos: 0 }],
       impresoraId: impresoraReciente(datos)?.id ?? "",
-      gramos: 0,
       minutos: 0,
       destino: "personal",
       extras: 0,
@@ -85,7 +100,7 @@ export function Impresiones({ datos }: { datos: Datos }) {
             {bandeja.map((p) => (
               <li key={p.id}>
                 <span className="pieza-nombre">
-                  <i className="muestra" style={{ background: p.color ?? "#666" }} />
+                  <Muestras colores={coloresDe(p).map((x) => x.color ?? "#666")} />
                   {p.nombre}
                 </span>
                 <span className="tenue">
@@ -135,20 +150,20 @@ export function Impresiones({ datos }: { datos: Datos }) {
             <tbody>
               {lista.map((i) => {
                 const c = costo(datos, i);
-                const rollo = datos.rollos.find((r) => r.id === i.rolloId);
+                const colores = i.filamentos.map((u) => datos.rollos.find((r) => r.id === u.rolloId)?.hex ?? "#666");
                 const ganancia = (i.precioVenta ?? 0) - c.total;
                 return (
                   <tr key={i.id} onClick={() => setEditando(i)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setEditando(i)}>
                     <td>
                       <span className="pieza-nombre">
-                        <i className="muestra" style={{ background: rollo?.hex ?? "#666" }} />
+                        <Muestras colores={colores} />
                         {i.nombre}
                       </span>
                     </td>
                     <td className="tenue">{fecha(i.fecha)}</td>
                     {varias ? <td className="tenue">{impresoraDe(datos, i.impresoraId)?.nombre}</td> : null}
                     <td className="num">{duracion(i.minutos)}</td>
-                    <td className="num">{gramos(i.gramos)}</td>
+                    <td className="num">{gramos(gramosDe(i))}</td>
                     <td>
                       <span className={`chip ${i.destino}`}>{DESTINOS[i.destino]}</span>
                     </td>
@@ -176,6 +191,17 @@ export function Impresiones({ datos }: { datos: Datos }) {
         />
       ) : null}
     </>
+  );
+}
+
+// Un cuadrito por color; en multicolor se enciman un poco, como los carretes del AMS.
+function Muestras({ colores }: { colores: string[] }) {
+  return (
+    <span className="muestras">
+      {colores.map((c, k) => (
+        <i className="muestra" key={k} style={{ background: c }} />
+      ))}
+    </span>
   );
 }
 
@@ -227,12 +253,14 @@ function Formulario({
   const [modeloArchivo, setModeloArchivo] = useState<string>();
   const cambiar = (c: Partial<Impresion>) => setF((x) => ({ ...x, ...c }));
 
+  // Colores que venían en el archivo, para mostrarlos junto a cada fila.
+  const [coloresArchivo, setColoresArchivo] = useState<FilamentoGcode[]>([]);
+  const cambiarUso = (k: number, c: Partial<Uso>) => cambiar({ filamentos: f.filamentos.map((u, n) => (n === k ? { ...u, ...c } : u)) });
+
   const c = costo(datos, f);
-  const rollo = datos.rollos.find((r) => r.id === f.rolloId);
-  const queda = rollo ? restanteRollo(datos, rollo, f.id) : 0;
   const sugerido = precioSugerido(datos, c);
   const fallas = tasaFallas(datos);
-  const disponibles = datos.rollos.filter((r) => !r.agotado || r.id === f.rolloId);
+  const disponibles = datos.rollos.filter((r) => !r.agotado || f.filamentos.some((u) => u.rolloId === r.id));
   const maquinas = datos.impresoras.filter((x) => !x.retirada || x.id === f.impresoraId);
   const elegida = impresoraDe(datos, f.impresoraId);
   const noCuadra = modeloArchivo && elegida && !esModelo(elegida, modeloArchivo);
@@ -241,24 +269,24 @@ function Formulario({
     if (!archivo) return;
     try {
       const g = await leerArchivo(archivo);
-      const igual = (m?: string) => !!m && m.toLowerCase() === g.material?.toLowerCase();
       const maquina = impresoraPorModelo(datos, g.impresora, f.impresoraId);
-      // Si el rollo elegido ya es del material del archivo se respeta; si no, el de color más parecido.
-      const parecido = rolloParecido(datos, g.material, g.color, (r) => restanteRollo(datos, r, f.id));
+      // Un color por fila; si el archivo no los separa, una sola fila con el total.
+      const colores = g.filamentos?.length ? g.filamentos : g.gramos !== undefined ? [{ material: g.material, color: g.color, gramos: g.gramos }] : [];
       cambiar({
         impresoraId: maquina?.id ?? f.impresoraId,
         nombre: f.nombre || g.nombre,
         minutos: g.minutos ?? f.minutos,
-        gramos: g.gramos ?? f.gramos,
-        rolloId: igual(rollo?.material) ? f.rolloId : igual(parecido?.material) ? parecido!.id : f.rolloId,
+        ...(colores.length ? { filamentos: asignarRollos(datos, colores, f.id) } : {}),
       });
+      setColoresArchivo(colores);
       setModeloArchivo(g.impresora);
-      const faltan = [g.minutos === undefined && "tiempo", g.gramos === undefined && "gramos"].filter(Boolean);
+      const faltan = [g.minutos === undefined && "tiempo", !colores.length && "gramos"].filter(Boolean);
       const placas = g.placas && g.placas > 1 ? ` · ${g.placas} placas sumadas` : "";
+      const cuantos = colores.length > 1 ? ` en ${colores.length} colores` : "";
       setAviso(
         faltan.length
           ? `No encontré ${faltan.join(" ni ")} en el archivo. Escríbelos a mano.`
-          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(g.gramos ?? 0)}${g.material ? ` · ${g.material}` : ""}${placas}. Revisa el rollo.`,
+          : `Leído: ${duracion(g.minutos ?? 0)} · ${gramos(gramosDe({ filamentos: colores.map((x) => ({ rolloId: "", gramos: x.gramos })) }))}${cuantos}${placas}. Revisa que cada color tenga su rollo.`,
       );
     } catch (e) {
       setAviso(e instanceof Error && e.message.endsWith(".") ? e.message : "No pude leer ese archivo.");
@@ -266,8 +294,9 @@ function Formulario({
   }
 
   function guardarImpresion() {
-    if (!f.rolloId) return setAviso("Elige de qué rollo salió.");
-    const lista: Impresion = { ...f, nombre: f.nombre.trim() || "Sin nombre", precioVenta: f.destino === "venta" ? f.precioVenta : undefined };
+    const filamentos = f.filamentos.filter((u) => u.rolloId || u.gramos > 0);
+    if (!filamentos.length || filamentos.some((u) => !u.rolloId)) return setAviso("Elige de qué rollo salió cada color.");
+    const lista: Impresion = { ...f, filamentos, nombre: f.nombre.trim() || "Sin nombre", precioVenta: f.destino === "venta" ? f.precioVenta : undefined };
     guardar((d) => ({
       ...d,
       impresiones: f.id ? d.impresiones.map((x) => (x.id === f.id ? lista : x)) : [...d.impresiones, { ...lista, id: nuevoId() }],
@@ -349,22 +378,55 @@ function Formulario({
           </p>
         ) : null}
 
-        <label className="campo">
-          <span>Rollo</span>
-          <div className="entrada">
-            <select onChange={(e) => cambiar({ rolloId: e.target.value })} value={f.rolloId}>
-              {disponibles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.material} {r.color} · {r.marca} · quedan {gramos(restanteRollo(datos, r, f.id))}
-                </option>
-              ))}
-            </select>
-          </div>
-        </label>
-        {rollo && f.gramos > queda ? <p className="aviso">Ese rollo solo tiene {gramos(queda)} según tus registros.</p> : null}
+        <div className="campo">
+          <span>{f.filamentos.length > 1 ? `Filamentos · ${f.filamentos.length} colores, ${gramos(gramosDe(f))}` : "Filamento"}</span>
+          {f.filamentos.map((u, k) => {
+            const rollo = datos.rollos.find((r) => r.id === u.rolloId);
+            const queda = rollo ? restanteRollo(datos, rollo, f.id) - f.filamentos.filter((x, n) => n < k && x.rolloId === u.rolloId).reduce((s, x) => s + x.gramos, 0) : 0;
+            const delArchivo = coloresArchivo[k];
+            return (
+              <div key={k}>
+                <div className="fila-filamento">
+                  <span className="par-muestras" title={delArchivo ? `En el archivo: ${delArchivo.material ?? ""} ${delArchivo.color ?? ""}` : undefined}>
+                    {delArchivo?.color ? <i className="muestra" style={{ background: delArchivo.color.slice(0, 7) }} /> : null}
+                    <i className="muestra grande" style={{ background: rollo?.hex ?? "#666" }} />
+                  </span>
+                  <div className="entrada">
+                    <select aria-label={`Rollo del color ${k + 1}`} onChange={(e) => cambiarUso(k, { rolloId: e.target.value })} value={u.rolloId}>
+                      {!u.rolloId ? <option value="">Elige el rollo…</option> : null}
+                      {disponibles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.material} {r.color} · {r.marca} · quedan {gramos(restanteRollo(datos, r, f.id))}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Numero etiqueta="" onCambio={(g) => cambiarUso(k, { gramos: g })} sufijo="g" valor={u.gramos} />
+                  {f.filamentos.length > 1 ? (
+                    <button
+                      aria-label="Quitar este color"
+                      className="icono-boton"
+                      onClick={() => cambiar({ filamentos: f.filamentos.filter((_, n) => n !== k) })}
+                      type="button"
+                    >
+                      <Icono nombre="cerrar" />
+                    </button>
+                  ) : null}
+                </div>
+                {rollo && u.gramos > queda ? <p className="aviso">Ese rollo solo tiene {gramos(Math.max(0, queda))} según tus registros.</p> : null}
+              </div>
+            );
+          })}
+          <button
+            className="enlace"
+            onClick={() => cambiar({ filamentos: [...f.filamentos, { rolloId: "", gramos: 0 }] })}
+            type="button"
+          >
+            + Otro color
+          </button>
+        </div>
 
-        <div className="tres">
-          <Numero etiqueta="Filamento" onCambio={(gramos) => cambiar({ gramos })} sufijo="g" valor={f.gramos} />
+        <div className="dos">
           <Numero
             etiqueta="Horas"
             onCambio={(h) => cambiar({ minutos: Math.round(h) * 60 + (f.minutos % 60) })}

@@ -16,6 +16,8 @@ export type Pendiente = {
   material?: string | null;
   color?: string | null;
   impresora?: string | null;
+  // Cada color del archivo (impresiones multicolor); los registros viejos no lo traen.
+  filamentos?: { material?: string | null; color?: string | null; gramos: number }[];
 };
 
 let pendientes: Pendiente[] = [];
@@ -69,10 +71,18 @@ function rgb(hex: string) {
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) || 0);
 }
 
-// Elige el rollo con el mismo material y el color más parecido al que tenía Orca;
+// Elige el rollo con el mismo material y el color más parecido al que tenía el laminador;
 // entre iguales, el que tenga menos filamento (para terminar primero los rollos abiertos).
-export function rolloParecido(d: Datos, material?: string | null, color?: string | null, restante?: (r: Rollo) => number) {
-  const activos = d.rollos.filter((r) => !r.agotado);
+// excluir: rollos ya elegidos para otro color de la misma impresión.
+export function rolloParecido(
+  d: Datos,
+  material?: string | null,
+  color?: string | null,
+  restante?: (r: Rollo) => number,
+  excluir?: Set<string>,
+) {
+  const libres = d.rollos.filter((r) => !r.agotado && !excluir?.has(r.id));
+  const activos = libres.length ? libres : d.rollos.filter((r) => !r.agotado);
   const mismos = activos.filter((r) => material && r.material.toLowerCase() === material.toLowerCase());
   const candidatos = mismos.length ? mismos : activos;
   if (!candidatos.length) return undefined;

@@ -52,9 +52,23 @@ def leer_gcode(ruta):
         or buscar(r"total filament weight \[g\]\s*:\s*([\d.]+)")
         or buscar(r"filament used \[g\]\s*=\s*([\d.,]+)")
     )
-    material = buscar(r"(?m)^;\s*filament_type\s*=\s*([^;\n]+)")
-    color = buscar(r"(?m)^;\s*filament_colou?r\s*=\s*([^;\n]+)")
+    material = buscar(r"(?m)^;\s*filament_type\s*=\s*([^\n]+)")
+    color = buscar(r"(?m)^;\s*filament_colou?r\s*=\s*([^\n]+)")
     impresora = buscar(r"(?m)^;\s*printer_model\s*=\s*([^;\n]+)")
+    # Cada color por separado (impresiones multicolor): solo los que de verdad se usaron.
+    por_color = buscar(r"(?m)^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$")
+    tipos = re.split(r"[;,]", material or "")
+    colores = re.split(r"[;,]", color or "")
+    filamentos = []
+    for k, g in enumerate(re.split(r"[;,]", por_color or "")):
+        try:
+            g = round(float(g), 1)
+        except ValueError:
+            continue
+        if g > 0:
+            tipo = (tipos[k] if k < len(tipos) else tipos[0]).strip().strip('"') or None
+            tono = (colores[k] if k < len(colores) else "").strip().strip('"') or None
+            filamentos.append({"material": tipo, "color": tono, "gramos": g})
     # Huella del contenido: si exportas el mismo archivo dos veces, no se duplica.
     huella = hashlib.sha1(texto.encode()).hexdigest()[:16]
 
@@ -65,6 +79,7 @@ def leer_gcode(ruta):
         "material": material.split(";")[0].split(",")[0].strip() if material else None,
         "color": color.split(";")[0].split(",")[0].strip() if color else None,
         "impresora": impresora or None,
+        "filamentos": filamentos,
     }
 
 

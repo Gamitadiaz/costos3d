@@ -61,8 +61,23 @@ export function precioGramo(r: Rollo | undefined) {
   return r && r.pesoG > 0 ? r.precio / r.pesoG : 0;
 }
 
+export function gramosDe(i: Pick<Impresion, "filamentos">) {
+  return i.filamentos.reduce((s, u) => s + u.gramos, 0);
+}
+
+// El rollo del que salió más filamento: su material decide el consumo de luz (la temperatura de cama).
+export function rolloPrincipal(d: Datos, i: Pick<Impresion, "filamentos">) {
+  const mayor = [...i.filamentos].sort((a, b) => b.gramos - a.gramos)[0];
+  return d.rollos.find((r) => r.id === mayor?.rolloId);
+}
+
 export function usadoRollo(d: Datos, rolloId: string, excepto?: string) {
-  return d.impresiones.filter((i) => i.rolloId === rolloId && i.id !== excepto).reduce((s, i) => s + i.gramos, 0);
+  let total = 0;
+  for (const i of d.impresiones) {
+    if (i.id === excepto) continue;
+    for (const u of i.filamentos) if (u.rolloId === rolloId) total += u.gramos;
+  }
+  return total;
 }
 
 export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
@@ -71,20 +86,21 @@ export function restanteRollo(d: Datos, r: Rollo, excepto?: string) {
 
 export function costo(
   d: Datos,
-  i: Pick<Impresion, "rolloId" | "impresoraId" | "gramos" | "minutos" | "extras" | "trabajoMin">,
+  i: Pick<Impresion, "filamentos" | "impresoraId" | "minutos" | "extras" | "trabajoMin">,
 ): Desglose {
-  const rollo = d.rollos.find((r) => r.id === i.rolloId);
   const imp = impresoraDe(d, i.impresoraId);
   const horas = i.minutos / 60;
-  const tipo = rollo?.material ?? "Otro";
+  const gramos = gramosDe(i);
+  const tipo = rolloPrincipal(d, i)?.material ?? "Otro";
   const kwh = (horas * (imp?.watts[tipo] ?? WATTS_INICIALES[tipo])) / 1000;
 
-  const material = i.gramos * precioGramo(rollo);
+  // Cada color se cobra al precio de su rollo.
+  const material = i.filamentos.reduce((s, u) => s + u.gramos * precioGramo(d.rollos.find((r) => r.id === u.rolloId)), 0);
   const luz = kwh * d.ajustes.kwh;
   const desgaste = imp && imp.vidaH > 0 ? (horas * invertidoImpresora(d, imp)) / imp.vidaH : 0;
   const refacciones = (imp?.refacciones ?? []).reduce((s, p) => {
     if (p.vida <= 0) return s;
-    const uso = p.unidad === "h" ? horas : i.gramos / 1000;
+    const uso = p.unidad === "h" ? horas : gramos / 1000;
     return s + (p.costo / p.vida) * uso;
   }, 0);
   const extras = i.extras || 0;
@@ -154,7 +170,7 @@ export function resumen(d: Datos) {
     r.luz += c.luz;
     r.apartado += c.refacciones;
     r.horas += i.minutos / 60;
-    r.gramos += i.gramos;
+    r.gramos += gramosDe(i);
     if (i.destino === "venta") {
       r.ingresos += i.precioVenta ?? 0;
       r.costoVendido += c.total;

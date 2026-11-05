@@ -1345,3 +1345,44 @@ p {
   padding: 0;
   list-style: none;
 }
+
+/* --- Varios colores por impresión (AMS) --- */
+
+.muestras {
+  display: inline-flex;
+  flex: none;
+}
+
+/* Se enciman un poco, como los carretes del AMS. */
+.muestras .muestra + .muestra {
+  margin-left: -3px;
+}
+
+.fila-filamento {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 110px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.fila-filamento .campo > span {
+  display: none;
+}
+
+.par-muestras {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.par-muestras .muestra:first-child:not(.grande) {
+  width: 6px;
+  height: 14px;
+  opacity: 0.85;
+}
+
+.muestra.grande {
+  width: 14px;
+  height: 30px;
+}

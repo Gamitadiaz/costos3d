@@ -4,8 +4,12 @@
 
 import { leerZip } from "./zip";
 
+// Un color del archivo: en impresiones multicolor (AMS) hay varios.
+export type FilamentoGcode = { material?: string; color?: string; gramos: number };
+
 export type DatosGcode = {
   nombre: string;
+  filamentos?: FilamentoGcode[];
   minutos?: number;
   gramos?: number;
   material?: string;
@@ -29,7 +33,20 @@ export function aMinutos(texto: string): number | undefined {
   return hallado ? Math.round(total) : undefined;
 }
 
-const primero = (lista?: string) => lista?.split(/[;,]/)[0]?.replace(/"/g, "").trim() || undefined;
+const partes = (lista?: string) => (lista ?? "").split(/[;,]/).map((x) => x.replace(/"/g, "").trim());
+const primero = (lista?: string) => partes(lista)[0] || undefined;
+const redondo = (g: number) => Math.round(g * 10) / 10;
+
+// Junta las listas del laminador ("12.3,0,4.5" / "PLA;PLA;PETG" / "#FFF;#000;#F00") y deja solo los
+// colores que de verdad se usaron.
+function porColor(gramos?: string, tipos?: string, colores?: string): FilamentoGcode[] {
+  const g = partes(gramos).map(Number);
+  const t = partes(tipos);
+  const c = partes(colores);
+  return g
+    .map((x, k) => ({ gramos: redondo(x || 0), material: t[k] || t[0] || undefined, color: c[k] || undefined }))
+    .filter((x) => x.gramos > 0);
+}
 
 // Los datos van en comentarios al principio y al final del G-code.
 export function datosDeTexto(texto: string): Lectura {
@@ -41,13 +58,16 @@ export function datosDeTexto(texto: string): Lectura {
     buscar(/total filament used \[g\]\s*=\s*([\d.]+)/i) ??
     buscar(/total filament weight \[g\]\s*:\s*([\d.]+)/i) ??
     buscar(/filament used \[g\]\s*=\s*([\d.,]+)/i);
+  const tipos = buscar(/^;\s*filament_type\s*=\s*([^\n]+)/im);
+  const colores = buscar(/^;\s*filament_colou?r\s*=\s*([^\n]+)/im);
 
   return {
+    filamentos: porColor(buscar(/^;\s*filament used \[g\]\s*=\s*([\d.,\s]+)$/im), tipos, colores),
     minutos: tiempo ? aMinutos(tiempo) : undefined,
     // Si hay varios filamentos ("12.3,4.5") se suman.
     gramos: gramos ? Math.round(gramos.split(",").reduce((s, g) => s + Number(g || 0), 0) * 10) / 10 : undefined,
-    material: primero(buscar(/^;\s*filament_type\s*=\s*([^\n]+)/im)),
-    color: primero(buscar(/^;\s*filament_colou?r\s*=\s*([^\n]+)/im)),
+    material: primero(tipos),
+    color: primero(colores),
     impresora: buscar(/^;\s*printer_model\s*=\s*([^;\n]+)/im) || undefined,
   };
 }
@@ -73,7 +93,20 @@ export async function datosDe3mf(datos: ArrayBuffer): Promise<Lectura> {
     const segundos = conTiempo.reduce((s, p) => s + Number(valor(p, "prediction")), 0);
     const gramos = conTiempo.reduce((s, p) => s + Number(valor(p, "weight") ?? 0), 0);
     const filamento = info?.match(/<filament [^>]*type="([^"]*)"[^>]*color="([^"]*)"/);
+    // Cada <filament> de cada placa trae su color y sus gramos; se suman por color entre placas.
+    const usados = new Map<string, FilamentoGcode>();
+    for (const placa of conTiempo) {
+      for (const [etiqueta] of placa.matchAll(/<filament [^>]*\/?>/g)) {
+        const attr = (n: string) => etiqueta.match(new RegExp(`\\b${n}="([^"]*)"`))?.[1];
+        const g = Number(attr("used_g") ?? 0);
+        if (!(g > 0)) continue;
+        const clave = `${attr("id")}|${attr("color")}`;
+        const previo = usados.get(clave);
+        usados.set(clave, { material: attr("type") || undefined, color: attr("color") || undefined, gramos: redondo((previo?.gramos ?? 0) + g) });
+      }
+    }
     return {
+      filamentos: [...usados.values()],
       minutos: Math.round(segundos / 60),
       gramos: Math.round(gramos * 10) / 10,
       material: filamento?.[1] || undefined,
